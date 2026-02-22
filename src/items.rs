@@ -6,7 +6,7 @@ use skim::{DisplayContext, ItemPreview, PreviewContext, SkimItem};
 use std::borrow::Cow;
 
 /// The kind of Kubernetes resource this item represents
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ResourceKind {
     Pod,
     Service,
@@ -18,6 +18,7 @@ pub enum ResourceKind {
     Ingress,
     Node,
     Namespace,
+    PersistentVolumeClaim,
     Job,
     CronJob,
 }
@@ -35,6 +36,7 @@ impl ResourceKind {
             Self::Ingress => "ing",
             Self::Node => "node",
             Self::Namespace => "ns",
+            Self::PersistentVolumeClaim => "pvc",
             Self::Job => "job",
             Self::CronJob => "cronjob",
         }
@@ -48,6 +50,7 @@ impl ResourceKind {
             Self::ConfigMap | Self::Secret => Color::Magenta,
             Self::Ingress => Color::Cyan,
             Self::Node | Self::Namespace => Color::White,
+            Self::PersistentVolumeClaim => Color::LightMagenta,
             Self::Job | Self::CronJob => Color::LightBlue,
         }
     }
@@ -86,10 +89,21 @@ impl K8sItem {
     /// Color the status string based on health
     pub fn status_color(&self) -> Color {
         match self.status.as_str() {
-            "Running" | "Active" | "Bound" | "Complete" => Color::Green,
-            "Pending" | "Terminating" => Color::Yellow,
-            "Failed" | "CrashLoopBackOff" | "Error" | "OOMKilled" => Color::Red,
+            "Running" | "Active" | "Bound" | "Complete" | "Succeeded" | "Ready"
+            | "Scheduled" | "ClusterIP" | "NodePort" | "LoadBalancer" => Color::Green,
+            "Pending" | "Terminating" | "ContainerCreating" => Color::Yellow,
+            "Failed" | "Error" | "OOMKilled" | "NotReady" | "Lost" => Color::Red,
             "Unknown" => Color::DarkGray,
+            s if s.starts_with("CrashLoop")
+                || s.starts_with("ErrImage")
+                || s.starts_with("ImagePull")
+                || s.starts_with("Init:Error")
+                || s.starts_with("Failed(") =>
+            {
+                Color::Red
+            }
+            s if s.starts_with("Init:") => Color::Yellow,
+            s if s.starts_with("Active(") => Color::Green,
             s if s.contains('/') => {
                 // e.g. "3/3" (ready/desired) — green if equal, yellow if not
                 let parts: Vec<&str> = s.splitn(2, '/').collect();
