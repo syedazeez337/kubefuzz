@@ -9,7 +9,7 @@ use cli::Args;
 use items::{K8sItem, ResourceKind};
 use k8s::{
     client::{build_client, current_context},
-    resources::{stream_resources, ALL_KINDS},
+    resources::{watch_resources, ALL_KINDS},
 };
 use skim::prelude::*;
 use std::sync::Arc;
@@ -75,7 +75,7 @@ async fn main() -> Result<()> {
             let tx_k8s = tx.clone();
             let kinds_clone = kinds.clone();
             tokio::spawn(async move {
-                if let Err(e) = stream_resources(client, tx_k8s, &kinds_clone).await {
+                if let Err(e) = watch_resources(client, tx_k8s, &kinds_clone).await {
                     eprintln!("\n[kubefuzz] {e}");
                 }
             });

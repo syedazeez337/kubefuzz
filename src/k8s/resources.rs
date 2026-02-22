@@ -1,4 +1,5 @@
 use anyhow::Result;
+use futures::StreamExt;
 use k8s_openapi::{
     api::{
         apps::v1::{DaemonSet, Deployment, StatefulSet},
@@ -10,16 +11,17 @@ use k8s_openapi::{
     apimachinery::pkg::apis::meta::v1::ObjectMeta,
 };
 use kube::{
-    api::{Api, ListParams},
+    api::Api,
+    runtime::{watcher, WatchStreamExt},
     Client, Resource, ResourceExt,
 };
 use serde::de::DeserializeOwned;
 use skim::SkimItemSender;
-use std::sync::Arc;
+use std::{fmt::Debug, pin::pin, sync::Arc};
 
 use crate::items::{K8sItem, ResourceKind};
 
-/// All resource kinds to stream when no filter is given.
+/// All resource kinds to watch when no filter is given.
 pub const ALL_KINDS: &[ResourceKind] = &[
     ResourceKind::Pod,
     ResourceKind::Deployment,
@@ -36,10 +38,11 @@ pub const ALL_KINDS: &[ResourceKind] = &[
     ResourceKind::Node,
 ];
 
-/// Stream the given resource kinds from the cluster into the skim channel.
-/// Each kind is fetched concurrently. Errors per-kind are logged but do not
-/// abort the others.
-pub async fn stream_resources(
+/// Watch the given resource kinds from the cluster, streaming live updates into skim.
+/// Initial items are sorted (unhealthy first) and sent as a batch at InitDone.
+/// Subsequent Apply/Delete events are streamed in real-time.
+/// Automatically reconnects on watch failures via default_backoff.
+pub async fn watch_resources(
     client: Client,
     tx: SkimItemSender,
     kinds: &[ResourceKind],
@@ -54,17 +57,17 @@ pub async fn stream_resources(
         tasks.push(tokio::spawn(async move {
             let result = match k {
                 ResourceKind::Pod => {
-                    stream_typed::<Pod, _>(c, t, ResourceKind::Pod, pod_status).await
+                    watch_typed::<Pod, _>(c, t, ResourceKind::Pod, pod_status).await
                 }
                 ResourceKind::Service => {
-                    stream_typed::<Service, _>(c, t, ResourceKind::Service, service_status).await
+                    watch_typed::<Service, _>(c, t, ResourceKind::Service, service_status).await
                 }
                 ResourceKind::Deployment => {
-                    stream_typed::<Deployment, _>(c, t, ResourceKind::Deployment, deploy_status)
+                    watch_typed::<Deployment, _>(c, t, ResourceKind::Deployment, deploy_status)
                         .await
                 }
                 ResourceKind::StatefulSet => {
-                    stream_typed::<StatefulSet, _>(
+                    watch_typed::<StatefulSet, _>(
                         c,
                         t,
                         ResourceKind::StatefulSet,
@@ -73,30 +76,30 @@ pub async fn stream_resources(
                     .await
                 }
                 ResourceKind::DaemonSet => {
-                    stream_typed::<DaemonSet, _>(c, t, ResourceKind::DaemonSet, daemonset_status)
+                    watch_typed::<DaemonSet, _>(c, t, ResourceKind::DaemonSet, daemonset_status)
                         .await
                 }
                 ResourceKind::ConfigMap => {
-                    stream_typed::<ConfigMap, _>(c, t, ResourceKind::ConfigMap, |_| {
+                    watch_typed::<ConfigMap, _>(c, t, ResourceKind::ConfigMap, |_| {
                         "ConfigMap".to_string()
                     })
                     .await
                 }
                 ResourceKind::Secret => {
-                    stream_typed::<Secret, _>(c, t, ResourceKind::Secret, secret_status).await
+                    watch_typed::<Secret, _>(c, t, ResourceKind::Secret, secret_status).await
                 }
                 ResourceKind::Ingress => {
-                    stream_typed::<Ingress, _>(c, t, ResourceKind::Ingress, ingress_status).await
+                    watch_typed::<Ingress, _>(c, t, ResourceKind::Ingress, ingress_status).await
                 }
                 ResourceKind::Node => {
-                    stream_typed::<Node, _>(c, t, ResourceKind::Node, node_status).await
+                    watch_typed::<Node, _>(c, t, ResourceKind::Node, node_status).await
                 }
                 ResourceKind::Namespace => {
-                    stream_typed::<Namespace, _>(c, t, ResourceKind::Namespace, namespace_status)
+                    watch_typed::<Namespace, _>(c, t, ResourceKind::Namespace, namespace_status)
                         .await
                 }
                 ResourceKind::PersistentVolumeClaim => {
-                    stream_typed::<PersistentVolumeClaim, _>(
+                    watch_typed::<PersistentVolumeClaim, _>(
                         c,
                         t,
                         ResourceKind::PersistentVolumeClaim,
@@ -105,21 +108,19 @@ pub async fn stream_resources(
                     .await
                 }
                 ResourceKind::Job => {
-                    stream_typed::<Job, _>(c, t, ResourceKind::Job, job_status).await
+                    watch_typed::<Job, _>(c, t, ResourceKind::Job, job_status).await
                 }
                 ResourceKind::CronJob => {
-                    stream_typed::<CronJob, _>(c, t, ResourceKind::CronJob, cronjob_status).await
+                    watch_typed::<CronJob, _>(c, t, ResourceKind::CronJob, cronjob_status).await
                 }
             };
 
             if let Err(e) = result {
-                // Log per-resource errors without aborting other streams
                 eprintln!("\n[kubefuzz] {e}");
             }
         }));
     }
 
-    // Wait for all resource-type fetches to finish
     for task in tasks {
         let _ = task.await;
     }
@@ -127,52 +128,120 @@ pub async fn stream_resources(
     Ok(())
 }
 
-// ─── Generic typed streamer ──────────────────────────────────────────────────
+// ─── Generic typed watcher ───────────────────────────────────────────────────
 
-/// List all resources of type `T` across all namespaces, sort by status
-/// priority (failed/pending first), and send to skim.
-async fn stream_typed<T, F>(
+/// Watch all resources of type `T` across all namespaces.
+///
+/// Lifecycle:
+/// - `Init`      → new watch cycle starting; clear the init buffer.
+/// - `InitApply` → existing object; buffer it.
+/// - `InitDone`  → sort the buffer by health priority and send the whole batch.
+/// - `Apply`     → live add/modify; send immediately.
+/// - `Delete`    → live deletion; send with `[DELETED]` status so it's visible.
+///
+/// The watcher reconnects automatically on failures via `default_backoff()`.
+/// The loop exits cleanly when skim closes the channel (send returns Err).
+async fn watch_typed<T, F>(
     client: Client,
     tx: SkimItemSender,
     kind: ResourceKind,
     status_fn: F,
 ) -> Result<()>
 where
-    T: Resource<DynamicType = ()> + DeserializeOwned + Clone + Send + Sync + std::fmt::Debug + 'static,
+    T: Resource<DynamicType = ()> + DeserializeOwned + Clone + Send + Sync + Debug + 'static,
     F: Fn(&T) -> String,
 {
     let api: Api<T> = Api::all(client);
-    let list = api
-        .list(&ListParams::default())
-        .await
-        .map_err(|e| anyhow::anyhow!("Failed to list {}s: {e}", kind.as_str()))?;
+    let mut stream = pin!(watcher(api, watcher::Config::default()).default_backoff());
 
-    let mut items: Vec<Arc<dyn skim::SkimItem>> = list
-        .items
-        .iter()
-        .map(|r| {
-            let ns = r.meta().namespace.clone().unwrap_or_default();
-            let name = r.name_any();
-            let status = status_fn(r);
-            let age = resource_age(r.meta());
-            Arc::new(K8sItem::new(kind.clone(), ns, name, status, age)) as Arc<dyn skim::SkimItem>
-        })
-        .collect();
+    // Buffer for initial items so we can sort before the first render.
+    let mut init_batch: Vec<Arc<dyn skim::SkimItem>> = Vec::new();
+    let mut in_init = true;
 
-    // Sort: unhealthy resources bubble to the top
-    items.sort_by_key(|item| {
-        (**item)
-            .as_any()
-            .downcast_ref::<K8sItem>()
-            .map(|k| status_priority(&k.status))
-            .unwrap_or(99)
-    });
+    while let Some(event) = stream.next().await {
+        match event {
+            // ── Init cycle start ──────────────────────────────────────────────
+            Ok(watcher::Event::Init) => {
+                init_batch.clear();
+                in_init = true;
+            }
 
-    if !items.is_empty() {
-        tx.send(items)?;
+            // ── Existing object during initial list ───────────────────────────
+            Ok(watcher::Event::InitApply(r)) => {
+                let item = make_item(&r, &kind, &status_fn, false);
+                if in_init {
+                    init_batch.push(Arc::new(item) as Arc<dyn skim::SkimItem>);
+                } else {
+                    // Shouldn't occur, but handle gracefully.
+                    if tx.send(vec![Arc::new(item) as Arc<dyn skim::SkimItem>]).is_err() {
+                        break;
+                    }
+                }
+            }
+
+            // ── Initial list complete — sort & send ───────────────────────────
+            Ok(watcher::Event::InitDone) => {
+                init_batch.sort_by_key(|item| {
+                    (**item)
+                        .as_any()
+                        .downcast_ref::<K8sItem>()
+                        .map(|k| status_priority(&k.status))
+                        .unwrap_or(99)
+                });
+                if !init_batch.is_empty()
+                    && tx.send(init_batch.drain(..).collect()).is_err()
+                {
+                    break;
+                }
+                in_init = false;
+            }
+
+            // ── Live add / update ─────────────────────────────────────────────
+            Ok(watcher::Event::Apply(r)) => {
+                let item = make_item(&r, &kind, &status_fn, false);
+                if tx.send(vec![Arc::new(item) as Arc<dyn skim::SkimItem>]).is_err() {
+                    break;
+                }
+            }
+
+            // ── Live deletion ─────────────────────────────────────────────────
+            Ok(watcher::Event::Delete(r)) => {
+                let item = make_item(&r, &kind, &status_fn, true);
+                if tx.send(vec![Arc::new(item) as Arc<dyn skim::SkimItem>]).is_err() {
+                    break;
+                }
+            }
+
+            // ── Watch error — default_backoff handles retry ───────────────────
+            Err(e) => {
+                eprintln!("[kubefuzz] watch error ({}): {e}", kind.as_str());
+            }
+        }
     }
 
     Ok(())
+}
+
+// ─── Item constructor helper ─────────────────────────────────────────────────
+
+fn make_item<T>(
+    r: &T,
+    kind: &ResourceKind,
+    status_fn: &impl Fn(&T) -> String,
+    deleted: bool,
+) -> K8sItem
+where
+    T: Resource<DynamicType = ()>,
+{
+    let ns = r.meta().namespace.clone().unwrap_or_default();
+    let name = r.name_any();
+    let status = if deleted {
+        "[DELETED]".to_string()
+    } else {
+        status_fn(r)
+    };
+    let age = resource_age(r.meta());
+    K8sItem::new(kind.clone(), ns, name, status, age)
 }
 
 // ─── Status priority (lower = shown first) ───────────────────────────────────
@@ -190,6 +259,7 @@ pub fn status_priority(status: &str) -> u8 {
         {
             0
         }
+        "[DELETED]" => 1,
         "Pending" | "ContainerCreating" | "Terminating" | "Unknown" => 1,
         s if s.starts_with("Init:") => 1,
         _ => 2,
