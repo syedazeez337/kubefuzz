@@ -93,7 +93,7 @@ impl K8sItem {
             | "Scheduled" | "ClusterIP" | "NodePort" | "LoadBalancer" => Color::Green,
             "Pending" | "Terminating" | "ContainerCreating" => Color::Yellow,
             "Failed" | "Error" | "OOMKilled" | "NotReady" | "Lost" => Color::Red,
-            "Unknown" => Color::DarkGray,
+            "Unknown" | "[DELETED]" => Color::DarkGray,
             s if s.starts_with("CrashLoop")
                 || s.starts_with("ErrImage")
                 || s.starts_with("ImagePull")

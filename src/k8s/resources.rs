@@ -282,7 +282,9 @@ fn pod_status(pod: &Pod) -> String {
             if let Some(state) = &cs.state {
                 if let Some(waiting) = &state.waiting {
                     if let Some(reason) = &waiting.reason {
-                        if reason != "ContainerCreating" {
+                        // "PodInitializing" = main container waiting for init containers —
+                        // skip it and let the init container block below compute Init:X/Y
+                        if reason != "ContainerCreating" && reason != "PodInitializing" {
                             return reason.clone();
                         }
                     }
@@ -298,8 +300,9 @@ fn pod_status(pod: &Pod) -> String {
             }
         }
     }
-    // Init container waiting
+    // Init container status — check waiting reason first, then running progress
     if let Some(ics) = &status.init_container_statuses {
+        // Explicit waiting reason (e.g. Init:ErrImagePull)
         for cs in ics {
             if let Some(state) = &cs.state {
                 if let Some(waiting) = &state.waiting {
@@ -308,6 +311,21 @@ fn pod_status(pod: &Pod) -> String {
                     }
                 }
             }
+        }
+        // One or more init containers are running — show X/Y progress like kubectl
+        let total = ics.len();
+        let done = ics
+            .iter()
+            .filter(|cs| {
+                cs.state
+                    .as_ref()
+                    .and_then(|s| s.terminated.as_ref())
+                    .map(|t| t.exit_code == 0)
+                    .unwrap_or(false)
+            })
+            .count();
+        if done < total {
+            return format!("Init:{done}/{total}");
         }
     }
     status.phase.clone().unwrap_or_else(|| "Unknown".to_string())
