@@ -157,28 +157,31 @@ impl SkimItem for K8sItem {
         ])
     }
 
-    /// Preview pane content for the hovered item
+    /// Preview pane content for the hovered item — calls kubectl describe synchronously.
+    /// Skim invokes this from a background thread, so blocking is fine here.
     fn preview(&self, _context: PreviewContext) -> ItemPreview {
-        let ns_line = if self.namespace.is_empty() {
-            String::new()
-        } else {
-            format!("Namespace:  {}\n", self.namespace)
-        };
+        let mut args = vec!["describe", self.kind.as_str(), &self.name];
+        if !self.namespace.is_empty() {
+            args.extend_from_slice(&["-n", &self.namespace]);
+        }
 
-        let info = format!(
-            "Kind:       {}\n{}Name:       {}\nStatus:     {}\nAge:        {}\nContext:    {}\n\n\
-             ─────────────────────────────────────────────\n\
-             [Phase 0 stub preview]\n\
-             Real kubectl describe / logs / yaml in Phase 1",
-            self.kind.as_str(),
-            ns_line,
-            self.name,
-            self.status,
-            self.age,
-            if self.context.is_empty() { "default" } else { &self.context },
-        );
-
-        ItemPreview::Text(info)
+        match std::process::Command::new("kubectl").args(&args).output() {
+            Ok(out) => {
+                let text = if out.status.success() {
+                    String::from_utf8_lossy(&out.stdout).to_string()
+                } else {
+                    format!(
+                        "[kubectl error]\n{}",
+                        String::from_utf8_lossy(&out.stderr)
+                    )
+                };
+                // AnsiText preserves kubectl's color output
+                ItemPreview::AnsiText(text)
+            }
+            Err(e) => ItemPreview::Text(format!(
+                "[Error running kubectl]\n{e}\n\nIs kubectl in your PATH?"
+            )),
+        }
     }
 
     /// What gets written to stdout when this item is selected
