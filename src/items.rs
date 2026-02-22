@@ -171,17 +171,35 @@ impl SkimItem for K8sItem {
         ])
     }
 
-    /// Preview pane content for the hovered item — calls kubectl describe synchronously.
-    /// Skim invokes this from a background thread, so blocking is fine here.
+    /// Preview pane content — mode cycles via ctrl-p (describe → yaml → logs).
+    /// Skim calls this from a background thread; blocking is fine here.
     fn preview(&self, _context: PreviewContext) -> ItemPreview {
-        let mut args = vec!["describe", self.kind.as_str(), &self.name];
+        let mode = crate::actions::current_preview_mode();
+
+        // Build the kubectl argument list for the current preview mode.
+        // Logs mode uses a different argument structure (no kind prefix).
+        let mut args: Vec<&str> = if mode == 2 && matches!(self.kind, ResourceKind::Pod) {
+            vec!["logs", "--tail=100", &self.name]
+        } else {
+            match mode {
+                1 => vec!["get", self.kind.as_str(), &self.name, "-o", "yaml"],
+                _ => vec!["describe", self.kind.as_str(), &self.name],
+            }
+        };
+
         if !self.namespace.is_empty() {
-            args.extend_from_slice(&["-n", &self.namespace]);
+            args.push("-n");
+            args.push(&self.namespace);
         }
 
         match std::process::Command::new("kubectl").args(&args).output() {
             Ok(out) => {
-                let text = if out.status.success() {
+                let header = match mode {
+                    1 => format!("── YAML: {}/{} ──\n", self.kind.as_str(), self.name),
+                    2 => format!("── LOGS: {} (last 100) ──\n", self.name),
+                    _ => format!("── DESCRIBE: {}/{} ──\n", self.kind.as_str(), self.name),
+                };
+                let body = if out.status.success() {
                     String::from_utf8_lossy(&out.stdout).to_string()
                 } else {
                     format!(
@@ -189,8 +207,7 @@ impl SkimItem for K8sItem {
                         String::from_utf8_lossy(&out.stderr)
                     )
                 };
-                // AnsiText preserves kubectl's color output
-                ItemPreview::AnsiText(text)
+                ItemPreview::AnsiText(format!("{header}{body}"))
             }
             Err(e) => ItemPreview::Text(format!(
                 "[Error running kubectl]\n{e}\n\nIs kubectl in your PATH?"
