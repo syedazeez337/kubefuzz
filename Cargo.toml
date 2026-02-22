@@ -1,0 +1,36 @@
+[package]
+name = "kubefuzz"
+version = "0.1.0"
+edition = "2021"
+description = "A fuzzy-first interactive Kubernetes resource navigator"
+license = "MIT"
+
+[[bin]]
+name = "kf"
+path = "src/main.rs"
+
+[dependencies]
+# Fuzzy finder engine — using the git clone directly because crates.io 3.4.0
+# is broken with frizbee 0.8.2 (simd module became private). The local clone
+# at ../skim already has the fix. default-features = false skips the CLI binary.
+skim = { path = "../skim", default-features = false }
+
+# TUI rendering — must match skim's ratatui version
+ratatui = "0.30"
+
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+
+# Error handling
+anyhow = "1"
+
+# Serialization (needed for K8s API responses later)
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# CLI args (Phase 1+)
+clap = { version = "4", features = ["derive"] }
+
+# Config file (Phase 1+)
+toml = "1"
+dirs = "6"
