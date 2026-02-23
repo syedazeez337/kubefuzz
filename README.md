@@ -1,97 +1,197 @@
-# KubeFuzz
+# kf — KubeFuzz
 
-> A fuzzy-first interactive Kubernetes resource navigator built on [skim](https://github.com/skim-rs/skim)
+> A fuzzy-first interactive Kubernetes resource navigator
 
-KubeFuzz makes navigating Kubernetes clusters as fast as typing. Fuzzy-search across every resource type (pods, services, deployments, configmaps, secrets…) across all namespaces simultaneously — with a live preview pane showing logs, YAML manifests, and events inline.
+`kf` lets you fuzzy-search every resource across every namespace in your cluster from a single terminal window. Select one or many, then describe, exec, tail logs, delete, port-forward, restart, or dump YAML — all without typing a single `kubectl` command.
 
----
-
-## Why KubeFuzz?
-
-| Tool | Problem |
-|---|---|
-| `kubectl` raw | Verbose, requires knowing exact names/namespaces upfront |
-| `k9s` | Powerful but steep learning curve; text-heavy; poor multi-cluster UX |
-| `kubectx` / `kubens` | Narrow scope — only switches context/namespace |
-| Lens / Aptakube | GUI-based, breaks terminal-native workflows |
-
-KubeFuzz is the missing piece: a **keyboard-driven, fuzzy-search-native TUI** for developers and platform engineers who live in the terminal.
+![demo](https://raw.githubusercontent.com/syedazeez337/kubefuzz/master/docs/demo.gif)
 
 ---
 
-## Core Features (Planned)
+## Features
 
-- **Universal fuzzy search** — type anything, match pods/services/deployments/configmaps/secrets/nodes across all namespaces
-- **Live preview pane** — logs, YAML manifest, describe output, events for the selected resource
-- **Multi-cluster support** — switch contexts via fuzzy search, persist across sessions
-- **Multi-select + bulk actions** — select multiple pods → restart/delete/port-forward all at once
-- **`kubectl exec` drop-in** — select a pod, pick a container, get a shell instantly
-- **Smart defaults** — failed/pending resources bubble to top automatically
-- **Composable** — pipe output back to shell, scriptable via exit codes
-
----
-
-## Tech Stack
-
-| Layer | Choice | Reason |
-|---|---|---|
-| Language | Rust | Performance, safety, small binary; skim is Rust-native |
-| Fuzzy engine | [skim](https://github.com/skim-rs/skim) (library) | Multi-select, preview pane, async streaming — MIT license |
-| K8s API | [kube-rs](https://github.com/kube-rs/kube) | Idiomatic async Rust K8s client |
-| Async runtime | Tokio | Required by kube-rs; skim supports async streaming |
-| TUI rendering | Ratatui (via skim) | skim already uses ratatui internally |
-| Config | TOML via `serde` + `dirs` crate | Follow XDG conventions |
-| CLI args | `clap` | Standard Rust CLI arg parsing |
+- **Fuzzy search everything** — pods, deployments, services, secrets, configmaps, nodes, namespaces, PVCs, jobs, cronjobs, statefulsets, daemonsets, ingresses — all at once
+- **Live preview pane** — inline `describe`, YAML manifest, or pod logs, cycled with `ctrl-p`
+- **Live watch** — resources appear and update in real time as the cluster changes; deleted resources show `[DELETED]`
+- **Unhealthy-first ordering** — `CrashLoopBackOff`, `Error`, `ImagePullBackOff` pods surface to the top automatically
+- **Color-coded status** — red for critical, yellow for warning, green for healthy, dimmed for deleted
+- **Multi-select bulk actions** — `tab` to select multiple resources, then describe/delete/restart them all at once
+- **Multi-cluster support** — watch all kubeconfig contexts simultaneously with `--all-contexts`, or switch contexts interactively with `ctrl-x`
+- **Context persistence** — last-used context is remembered across sessions
+- **Demo mode** — works without a cluster; shows sample data so you can explore the UI
 
 ---
 
-## Status
+## Requirements
 
-**Pre-development** — research and architecture phase complete.
-
-See [`docs/`](./docs/) for full context:
-- [`docs/RESEARCH.md`](./docs/RESEARCH.md) — Market research, competitive analysis, opportunity sizing
-- [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) — Technical design, module breakdown, skim integration
-- [`docs/ROADMAP.md`](./docs/ROADMAP.md) — MVP scope, phased feature plan
-- [`docs/SKIM_NOTES.md`](./docs/SKIM_NOTES.md) — How skim works and how we use it as a library
+- Rust toolchain (`cargo`) — to build from source
+- `kubectl` in `$PATH` — used for all actions (describe, logs, exec, delete, etc.)
+- A valid kubeconfig (`~/.kube/config` or `$KUBECONFIG`) — optional; demo mode activates automatically if absent
 
 ---
 
-## Quick Start (once built)
+## Installation
 
 ```bash
-# Install
-cargo install kubefuzz
-
-# Run — fuzzy search all resources in current context
-kf
-
-# Multi-cluster mode
-kf --all-contexts
-
-# Filter to a specific resource type
-kf pods
-kf svc
-kf deploy
-
-# Keybindings (default)
-# <tab>        multi-select
-# <enter>      describe / open preview
-# ctrl-l       view live logs
-# ctrl-e       exec into container shell
-# ctrl-d       delete selected resource(s)
-# ctrl-f       port-forward
-# ctrl-x       switch cluster context
+git clone https://github.com/syedazeez337/kubefuzz.git
+cd kubefuzz
+cargo build --release
+# Binary is at target/release/kf
+# Optionally move it somewhere on your PATH:
+sudo mv target/release/kf /usr/local/bin/kf
 ```
 
 ---
 
-## Contributing
+## Usage
 
-See [`docs/CONTRIBUTING.md`](./docs/CONTRIBUTING.md). The project is in early design phase — architectural feedback welcome.
+```
+kf [RESOURCE] [OPTIONS]
+```
+
+### Show all resources (default)
+
+```bash
+kf
+```
+
+Opens the TUI with every resource type streaming from the current kubeconfig context.
+
+### Filter to a specific resource type
+
+```bash
+kf pods        # or: pod, po
+kf deploy      # or: deployment, deployments
+kf svc         # or: service, services
+kf sts         # or: statefulset, statefulsets
+kf ds          # or: daemonset, daemonsets
+kf cm          # or: configmap, configmaps
+kf secret      # or: secrets
+kf ing         # or: ingress, ingresses
+kf node        # or: nodes, no
+kf ns          # or: namespace, namespaces
+kf pvc         # or: persistentvolumeclaim
+kf job         # or: jobs
+kf cj          # or: cronjob, cronjobs
+```
+
+### Use a specific context
+
+```bash
+kf --context my-prod-cluster
+```
+
+Overrides both the kubeconfig current context and the last-saved context.
+
+### Watch all contexts simultaneously
+
+```bash
+kf --all-contexts
+```
+
+Streams resources from every context in your kubeconfig in parallel. Each item is prefixed with its cluster name (color-coded per cluster).
+
+---
+
+## Keybindings
+
+### Navigation
+
+| Key | Action |
+|-----|--------|
+| Type anything | Fuzzy filter the list in real time |
+| `↑` / `↓` | Move cursor |
+| `tab` | Toggle selection on current item (multi-select) |
+| `esc` | Quit |
+
+### Actions (on selected item(s))
+
+| Key | Action | Multi-select |
+|-----|--------|:---:|
+| `enter` | `kubectl describe` | ✓ |
+| `ctrl-l` | Stream pod logs (`--tail=200`) | ✓ |
+| `ctrl-e` | `kubectl exec -it` into shell | — |
+| `ctrl-d` | Delete with `y/N` confirmation | ✓ |
+| `ctrl-f` | Port-forward (prompts for local/remote port) | — |
+| `ctrl-r` | `kubectl rollout restart` (deploy/sts/ds) | ✓ |
+| `ctrl-y` | Print YAML to stdout | ✓ |
+
+### Preview & context
+
+| Key | Action |
+|-----|--------|
+| `ctrl-p` | Cycle preview mode: **describe → yaml → logs** |
+| `ctrl-x` | Open context picker — switch cluster without restarting |
+
+---
+
+## Preview Modes
+
+The right-hand preview pane updates as you move the cursor. Press `ctrl-p` to cycle through three modes:
+
+| Mode | Content |
+|------|---------|
+| `describe` | `kubectl describe <resource>` output |
+| `yaml` | `kubectl get <resource> -o yaml` |
+| `logs` | Last 100 lines of pod logs (pods only) |
+
+---
+
+## Multi-cluster Mode
+
+```bash
+kf --all-contexts
+```
+
+All contexts from your kubeconfig are loaded in parallel. Items are prefixed with the cluster name:
+
+```
+pod   prod-cluster/default/api-server-7d9f     Running   2d
+pod   staging/default/api-server-5c2a          Pending   5m
+```
+
+Each cluster gets a distinct color so items are immediately identifiable.
+
+### Switching contexts interactively
+
+Press `ctrl-x` while `kf` is running to open a secondary fuzzy picker showing all your kubeconfig contexts. Selecting a context restarts the resource stream from that cluster. The selected context is saved to `~/.config/kubefuzz/last_context` and restored on the next launch.
+
+---
+
+## Status Colors
+
+| Color | Meaning | Example statuses |
+|-------|---------|-----------------|
+| Red | Critical — needs attention | `CrashLoopBackOff`, `Error`, `ImagePullBackOff`, `OOMKilled`, `Failed`, `Evicted` |
+| Yellow | Warning — transitional | `Pending`, `Terminating`, `Init:0/1`, `ContainerCreating` |
+| Green | Healthy | `Running`, `Succeeded`, `Active`, `Bound`, `ClusterIP` |
+| Gray | Gone | `[DELETED]`, `Unknown` |
+
+Unhealthy resources (red) automatically sort to the top of the list so critical issues are visible immediately without scrolling.
+
+---
+
+## Demo Mode
+
+If `kubectl` cannot connect to a cluster (no kubeconfig, invalid context, or network error), `kf` falls back to demo mode and displays 11 sample resources so you can explore the interface:
+
+```bash
+KUBECONFIG=/nonexistent kf
+# [kubefuzz] No cluster (...). Showing demo data.
+```
+
+---
+
+## Config & State
+
+| File | Purpose |
+|------|---------|
+| `~/.config/kubefuzz/last_context` | Last-used context, restored on next launch |
+| `/tmp/kubefuzz-preview-mode` | Preview mode state (0=describe, 1=yaml, 2=logs) |
+| `/tmp/kubefuzz-preview-toggle` | Shell script installed at startup for ctrl-p |
 
 ---
 
 ## License
 
-MIT — same as skim, the underlying fuzzy engine.
+MIT — same as [skim](https://github.com/skim-rs/skim), the underlying fuzzy engine.
