@@ -233,7 +233,7 @@ fn build_skim_options(ctx_label: &str, kind_label: &str, show_ctx_switch: bool) 
                     "ctrl-r:accept".to_string(),
                     "ctrl-y:accept".to_string(),
                     // ctrl-p cycles preview mode in-place (does NOT exit skim)
-                    format!("ctrl-p:execute-silent({PREVIEW_TOGGLE_SCRIPT})+refresh-preview"),
+                    format!("ctrl-p:execute({PREVIEW_TOGGLE_SCRIPT})+refresh-preview"),
                 ];
                 if show_ctx_switch {
                     binds.push("ctrl-x:accept".to_string());
