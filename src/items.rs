@@ -92,13 +92,17 @@ impl K8sItem {
             "Running" | "Active" | "Bound" | "Complete" | "Succeeded" | "Ready"
             | "Scheduled" | "ClusterIP" | "NodePort" | "LoadBalancer" => Color::Green,
             "Pending" | "Terminating" | "ContainerCreating" => Color::Yellow,
-            "Failed" | "Error" | "OOMKilled" | "NotReady" | "Lost" => Color::Red,
+            "Failed" | "Error" | "OOMKilled" | "NotReady" | "Lost" | "Evicted" => Color::Red,
             "Unknown" | "[DELETED]" => Color::DarkGray,
             s if s.starts_with("CrashLoop")
                 || s.starts_with("ErrImage")
                 || s.starts_with("ImagePull")
                 || s.starts_with("Init:Error")
-                || s.starts_with("Failed(") =>
+                || s.starts_with("Init:ErrImage")
+                || s.starts_with("Init:ImagePull")
+                || s.starts_with("Failed(")
+                || s == "Evicted"
+                || s == "BackOff" =>
             {
                 Color::Red
             }
@@ -164,12 +168,17 @@ impl SkimItem for K8sItem {
         } else {
             format!("{}/", self.namespace)
         };
+        let name_truncated = if self.name.len() > 32 {
+            format!("{}…", &self.name[..31])
+        } else {
+            self.name.clone()
+        };
         Cow::Owned(format!(
             "{:<8} {}{}{} {} {}",
             self.kind.as_str(),
             ctx_prefix,
             ns_prefix,
-            self.name,
+            name_truncated,
             self.status,
             self.age,
         ))
@@ -199,12 +208,14 @@ impl SkimItem for K8sItem {
         }
 
         spans.push(Span::styled(ns_prefix, Style::default().fg(Color::Cyan)));
+        let name_col = if self.name.len() > 32 {
+            format!("{}… ", &self.name[..31])
+        } else {
+            format!("{:<32} ", self.name)
+        };
+        spans.push(Span::styled(name_col, Style::default().fg(Color::White)));
         spans.push(Span::styled(
-            format!("{:<48} ", self.name),
-            Style::default().fg(Color::White),
-        ));
-        spans.push(Span::styled(
-            format!("{:<22} ", self.status),
+            format!("{:<17} ", self.status),
             Style::default().fg(self.status_color()),
         ));
         spans.push(Span::styled(

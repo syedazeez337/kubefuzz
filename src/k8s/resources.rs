@@ -186,7 +186,8 @@ where
     let mut stream = pin!(watcher(api, watcher::Config::default()).default_backoff());
 
     // Buffer for initial items so we can sort before the first render.
-    let mut init_batch: Vec<Arc<dyn skim::SkimItem>> = Vec::new();
+    // Stored as K8sItem (concrete type) so we can sort without downcast.
+    let mut init_batch: Vec<K8sItem> = Vec::new();
     let mut in_init = true;
 
     while let Some(event) = stream.next().await {
@@ -201,7 +202,7 @@ where
             Ok(watcher::Event::InitApply(r)) => {
                 let item = make_item(&r, &kind, &status_fn, false, &context);
                 if in_init {
-                    init_batch.push(Arc::new(item) as Arc<dyn skim::SkimItem>);
+                    init_batch.push(item);
                 } else {
                     // Shouldn't occur, but handle gracefully.
                     if tx.send(vec![Arc::new(item) as Arc<dyn skim::SkimItem>]).is_err() {
@@ -212,16 +213,16 @@ where
 
             // ── Initial list complete — sort & send ───────────────────────────
             Ok(watcher::Event::InitDone) => {
-                init_batch.sort_by_key(|item| {
-                    (**item)
-                        .as_any()
-                        .downcast_ref::<K8sItem>()
-                        .map(|k| status_priority(&k.status))
-                        .unwrap_or(99)
-                });
-                if !init_batch.is_empty()
-                    && tx.send(init_batch.drain(..).collect()).is_err()
-                {
+                // Sort by priority descending: healthy (2) first, unhealthy (0) last.
+                // Skim renders higher-indexed items at the TOP of the list (lower indices
+                // appear near the prompt at the bottom). Sending unhealthy items LAST
+                // gives them the highest indices so they surface to the top of the display.
+                init_batch.sort_by_key(|item| std::cmp::Reverse(status_priority(&item.status)));
+                let sorted: Vec<Arc<dyn skim::SkimItem>> = init_batch
+                    .drain(..)
+                    .map(|item| Arc::new(item) as Arc<dyn skim::SkimItem>)
+                    .collect();
+                if !sorted.is_empty() && tx.send(sorted).is_err() {
                     break;
                 }
                 in_init = false;
