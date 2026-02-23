@@ -39,6 +39,7 @@ pub const ALL_KINDS: &[ResourceKind] = &[
 ];
 
 /// Watch the given resource kinds from the cluster, streaming live updates into skim.
+/// `context` is a display label attached to every item (empty string in single-cluster mode).
 /// Initial items are sorted (unhealthy first) and sent as a batch at InitDone.
 /// Subsequent Apply/Delete events are streamed in real-time.
 /// Automatically reconnects on watch failures via default_backoff.
@@ -46,6 +47,7 @@ pub async fn watch_resources(
     client: Client,
     tx: SkimItemSender,
     kinds: &[ResourceKind],
+    context: &str,
 ) -> Result<()> {
     let mut tasks = Vec::new();
 
@@ -53,18 +55,26 @@ pub async fn watch_resources(
         let c = client.clone();
         let t = tx.clone();
         let k = kind.clone();
+        let ctx = context.to_string();
 
         tasks.push(tokio::spawn(async move {
             let result = match k {
                 ResourceKind::Pod => {
-                    watch_typed::<Pod, _>(c, t, ResourceKind::Pod, pod_status).await
+                    watch_typed::<Pod, _>(c, t, ResourceKind::Pod, pod_status, ctx).await
                 }
                 ResourceKind::Service => {
-                    watch_typed::<Service, _>(c, t, ResourceKind::Service, service_status).await
+                    watch_typed::<Service, _>(c, t, ResourceKind::Service, service_status, ctx)
+                        .await
                 }
                 ResourceKind::Deployment => {
-                    watch_typed::<Deployment, _>(c, t, ResourceKind::Deployment, deploy_status)
-                        .await
+                    watch_typed::<Deployment, _>(
+                        c,
+                        t,
+                        ResourceKind::Deployment,
+                        deploy_status,
+                        ctx,
+                    )
+                    .await
                 }
                 ResourceKind::StatefulSet => {
                     watch_typed::<StatefulSet, _>(
@@ -72,31 +82,49 @@ pub async fn watch_resources(
                         t,
                         ResourceKind::StatefulSet,
                         statefulset_status,
+                        ctx,
                     )
                     .await
                 }
                 ResourceKind::DaemonSet => {
-                    watch_typed::<DaemonSet, _>(c, t, ResourceKind::DaemonSet, daemonset_status)
-                        .await
+                    watch_typed::<DaemonSet, _>(
+                        c,
+                        t,
+                        ResourceKind::DaemonSet,
+                        daemonset_status,
+                        ctx,
+                    )
+                    .await
                 }
                 ResourceKind::ConfigMap => {
-                    watch_typed::<ConfigMap, _>(c, t, ResourceKind::ConfigMap, |_| {
-                        "ConfigMap".to_string()
-                    })
+                    watch_typed::<ConfigMap, _>(
+                        c,
+                        t,
+                        ResourceKind::ConfigMap,
+                        |_| "ConfigMap".to_string(),
+                        ctx,
+                    )
                     .await
                 }
                 ResourceKind::Secret => {
-                    watch_typed::<Secret, _>(c, t, ResourceKind::Secret, secret_status).await
+                    watch_typed::<Secret, _>(c, t, ResourceKind::Secret, secret_status, ctx).await
                 }
                 ResourceKind::Ingress => {
-                    watch_typed::<Ingress, _>(c, t, ResourceKind::Ingress, ingress_status).await
+                    watch_typed::<Ingress, _>(c, t, ResourceKind::Ingress, ingress_status, ctx)
+                        .await
                 }
                 ResourceKind::Node => {
-                    watch_typed::<Node, _>(c, t, ResourceKind::Node, node_status).await
+                    watch_typed::<Node, _>(c, t, ResourceKind::Node, node_status, ctx).await
                 }
                 ResourceKind::Namespace => {
-                    watch_typed::<Namespace, _>(c, t, ResourceKind::Namespace, namespace_status)
-                        .await
+                    watch_typed::<Namespace, _>(
+                        c,
+                        t,
+                        ResourceKind::Namespace,
+                        namespace_status,
+                        ctx,
+                    )
+                    .await
                 }
                 ResourceKind::PersistentVolumeClaim => {
                     watch_typed::<PersistentVolumeClaim, _>(
@@ -104,14 +132,16 @@ pub async fn watch_resources(
                         t,
                         ResourceKind::PersistentVolumeClaim,
                         pvc_status,
+                        ctx,
                     )
                     .await
                 }
                 ResourceKind::Job => {
-                    watch_typed::<Job, _>(c, t, ResourceKind::Job, job_status).await
+                    watch_typed::<Job, _>(c, t, ResourceKind::Job, job_status, ctx).await
                 }
                 ResourceKind::CronJob => {
-                    watch_typed::<CronJob, _>(c, t, ResourceKind::CronJob, cronjob_status).await
+                    watch_typed::<CronJob, _>(c, t, ResourceKind::CronJob, cronjob_status, ctx)
+                        .await
                 }
             };
 
@@ -146,6 +176,7 @@ async fn watch_typed<T, F>(
     tx: SkimItemSender,
     kind: ResourceKind,
     status_fn: F,
+    context: String,
 ) -> Result<()>
 where
     T: Resource<DynamicType = ()> + DeserializeOwned + Clone + Send + Sync + Debug + 'static,
@@ -168,7 +199,7 @@ where
 
             // ── Existing object during initial list ───────────────────────────
             Ok(watcher::Event::InitApply(r)) => {
-                let item = make_item(&r, &kind, &status_fn, false);
+                let item = make_item(&r, &kind, &status_fn, false, &context);
                 if in_init {
                     init_batch.push(Arc::new(item) as Arc<dyn skim::SkimItem>);
                 } else {
@@ -198,7 +229,7 @@ where
 
             // ── Live add / update ─────────────────────────────────────────────
             Ok(watcher::Event::Apply(r)) => {
-                let item = make_item(&r, &kind, &status_fn, false);
+                let item = make_item(&r, &kind, &status_fn, false, &context);
                 if tx.send(vec![Arc::new(item) as Arc<dyn skim::SkimItem>]).is_err() {
                     break;
                 }
@@ -206,7 +237,7 @@ where
 
             // ── Live deletion ─────────────────────────────────────────────────
             Ok(watcher::Event::Delete(r)) => {
-                let item = make_item(&r, &kind, &status_fn, true);
+                let item = make_item(&r, &kind, &status_fn, true, &context);
                 if tx.send(vec![Arc::new(item) as Arc<dyn skim::SkimItem>]).is_err() {
                     break;
                 }
@@ -229,6 +260,7 @@ fn make_item<T>(
     kind: &ResourceKind,
     status_fn: &impl Fn(&T) -> String,
     deleted: bool,
+    context: &str,
 ) -> K8sItem
 where
     T: Resource<DynamicType = ()>,
@@ -241,7 +273,9 @@ where
         status_fn(r)
     };
     let age = resource_age(r.meta());
-    K8sItem::new(kind.clone(), ns, name, status, age)
+    let mut item = K8sItem::new(kind.clone(), ns, name, status, age);
+    item.context = context.to_string();
+    item
 }
 
 // ─── Status priority (lower = shown first) ───────────────────────────────────

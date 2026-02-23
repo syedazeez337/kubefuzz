@@ -12,6 +12,16 @@ pub struct Args {
     /// Resource type to filter (pods/po, svc, deploy, sts, ds, cm, secret,
     /// ing, node, ns, pvc, job, cronjob). Omit to show ALL resource types.
     pub resource: Option<String>,
+
+    /// Watch resources from all kubeconfig contexts simultaneously.
+    /// Resources are prefixed with their cluster context name.
+    #[arg(long)]
+    pub all_contexts: bool,
+
+    /// Use a specific kubeconfig context instead of the current one.
+    /// Overrides the last-used context saved by ctrl-x switching.
+    #[arg(long, value_name = "CONTEXT")]
+    pub context: Option<String>,
 }
 
 impl Args {

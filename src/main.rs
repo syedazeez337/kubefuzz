@@ -8,11 +8,14 @@ use clap::Parser;
 use cli::Args;
 use items::{K8sItem, ResourceKind};
 use k8s::{
-    client::{build_client, current_context},
+    client::{
+        build_client_for_context, current_context, list_contexts, load_last_context,
+        save_last_context,
+    },
     resources::{watch_resources, ALL_KINDS},
 };
 use skim::prelude::*;
-use std::sync::Arc;
+use std::{borrow::Cow, sync::Arc};
 
 use actions::{
     action_delete, action_describe, action_exec, action_logs, action_portforward,
@@ -23,7 +26,6 @@ use actions::{
 #[tokio::main]
 async fn main() -> Result<()> {
     let args = Args::parse();
-    let ctx = current_context();
 
     // Write the preview-toggle shell script and reset mode to 0 (describe)
     install_preview_toggle();
@@ -38,63 +40,209 @@ async fn main() -> Result<()> {
         "all".to_string()
     };
 
-    let options = SkimOptionsBuilder::default()
-        .multi(true)
-        .preview(String::new())
-        .preview_window("right:50%")
-        .height("60%")
-        .header(format!(
-            "KubeFuzz  ctx:{ctx}  res:{kind_label}  preview:{}\n\
-             <tab> select  <enter> describe  ctrl-l logs  ctrl-e exec  \
-             ctrl-d delete  ctrl-f forward  ctrl-r restart  ctrl-y yaml  \
-             ctrl-p preview-mode",
-            preview_mode_label()
-        ))
-        .prompt("❯ ")
-        .bind(
-            [
-                "ctrl-l:accept",
-                "ctrl-e:accept",
-                "ctrl-d:accept",
-                "ctrl-f:accept",
-                "ctrl-r:accept",
-                "ctrl-y:accept",
-                // ctrl-p cycles preview mode in-place (does NOT exit skim)
-                &format!("ctrl-p:execute-silent({PREVIEW_TOGGLE_SCRIPT})+refresh-preview"),
-            ]
-            .iter()
-            .map(|s| s.to_string())
-            .collect::<Vec<_>>(),
-        )
-        .build()?;
+    if args.all_contexts {
+        // ── Multi-cluster mode: load all contexts simultaneously ──────────────
+        run_all_contexts(&args, &kinds, &kind_label).await
+    } else {
+        // ── Single-cluster mode: loop to support ctrl-x context switching ─────
+        run_single_context(&args, &kinds, &kind_label).await
+    }
+}
+
+// ─── Single-cluster mode (with ctrl-x context switching) ─────────────────────
+
+async fn run_single_context(args: &Args, kinds: &[ResourceKind], kind_label: &str) -> Result<()> {
+    // Determine the starting context: CLI flag → last saved → kubeconfig current
+    let mut active_ctx = args
+        .context
+        .clone()
+        .or_else(load_last_context)
+        .unwrap_or_else(current_context);
+
+    loop {
+        let (tx, rx): (SkimItemSender, SkimItemReceiver) = unbounded();
+
+        // Spawn watcher for the active context
+        let ctx_for_watcher = active_ctx.clone();
+        let tx_k8s = tx.clone();
+        let kinds_clone = kinds.to_vec();
+        tokio::spawn(async move {
+            match build_client_for_context(&ctx_for_watcher).await {
+                Ok(client) => {
+                    if let Err(e) =
+                        watch_resources(client, tx_k8s, &kinds_clone, "").await
+                    {
+                        eprintln!("\n[kubefuzz] {e}");
+                    }
+                }
+                Err(e) => {
+                    eprintln!("[kubefuzz] No cluster ({e}). Showing demo data.");
+                    let _ = tx_k8s.send(demo_items());
+                }
+            }
+        });
+
+        drop(tx);
+
+        let options = build_skim_options(&active_ctx, kind_label, true);
+        let output = Skim::run_with(options, Some(rx)).map_err(|e| anyhow::anyhow!("{e}"))?;
+
+        if output.is_abort {
+            break;
+        }
+
+        // Check if ctrl-x was pressed → open context picker and restart loop
+        use crossterm::event::{KeyCode, KeyModifiers};
+        let key = output.final_key;
+        if key.code == KeyCode::Char('x') && key.modifiers == KeyModifiers::CONTROL {
+            if let Some(new_ctx) = pick_context()? {
+                active_ctx = new_ctx;
+                save_last_context(&active_ctx);
+            }
+            // Reinstall preview toggle so the new session starts fresh
+            install_preview_toggle();
+            continue;
+        }
+
+        dispatch(output).await?;
+        break;
+    }
+
+    Ok(())
+}
+
+// ─── Multi-cluster mode (--all-contexts) ─────────────────────────────────────
+
+async fn run_all_contexts(_args: &Args, kinds: &[ResourceKind], kind_label: &str) -> Result<()> {
+    let contexts = list_contexts();
+    if contexts.is_empty() {
+        eprintln!("[kubefuzz] No contexts found in kubeconfig.");
+        return Ok(());
+    }
 
     let (tx, rx): (SkimItemSender, SkimItemReceiver) = unbounded();
 
-    match build_client().await {
-        Ok(client) => {
-            let tx_k8s = tx.clone();
-            let kinds_clone = kinds.clone();
-            tokio::spawn(async move {
-                if let Err(e) = watch_resources(client, tx_k8s, &kinds_clone).await {
-                    eprintln!("\n[kubefuzz] {e}");
+    for ctx_name in &contexts {
+        let tx_clone = tx.clone();
+        let ctx_clone = ctx_name.clone();
+        let kinds_clone = kinds.to_vec();
+
+        tokio::spawn(async move {
+            match build_client_for_context(&ctx_clone).await {
+                Ok(client) => {
+                    if let Err(e) =
+                        watch_resources(client, tx_clone, &kinds_clone, &ctx_clone).await
+                    {
+                        eprintln!("[kubefuzz:{}] {e}", ctx_clone);
+                    }
                 }
-            });
-        }
-        Err(e) => {
-            eprintln!("[kubefuzz] No cluster: {e}. Showing demo data.");
-            let _ = tx.send(demo_items());
-        }
+                Err(e) => {
+                    eprintln!("[kubefuzz] Cannot connect to '{}': {e}", ctx_clone);
+                }
+            }
+        });
     }
 
     drop(tx);
 
+    let ctx_label = "all-contexts";
+    let options = build_skim_options(ctx_label, kind_label, false);
     let output = Skim::run_with(options, Some(rx)).map_err(|e| anyhow::anyhow!("{e}"))?;
 
     if output.is_abort {
         return Ok(());
     }
 
+    // Ignore ctrl-x in all-contexts mode (no loop needed)
     dispatch(output).await
+}
+
+// ─── Context picker (ctrl-x) ──────────────────────────────────────────────────
+
+/// Runs a secondary skim session showing all kubeconfig contexts.
+/// Returns the selected context name, or None if the user cancelled.
+fn pick_context() -> Result<Option<String>> {
+    let contexts = list_contexts();
+    if contexts.is_empty() {
+        eprintln!("[kubefuzz] No contexts found in kubeconfig.");
+        return Ok(None);
+    }
+
+    let (tx, rx): (SkimItemSender, SkimItemReceiver) = unbounded();
+    for ctx in &contexts {
+        let _ = tx.send(vec![Arc::new(ContextItem(ctx.clone())) as Arc<dyn SkimItem>]);
+    }
+    drop(tx);
+
+    let options = SkimOptionsBuilder::default()
+        .header("Select context  (Esc to cancel)")
+        .prompt("context ❯ ")
+        .height("40%")
+        .build()?;
+
+    let output = Skim::run_with(options, Some(rx)).map_err(|e| anyhow::anyhow!("{e}"))?;
+
+    if output.is_abort || output.selected_items.is_empty() {
+        return Ok(None);
+    }
+
+    Ok(Some(output.selected_items[0].output().to_string()))
+}
+
+/// Minimal SkimItem wrapper for a kubeconfig context name string.
+struct ContextItem(String);
+
+impl SkimItem for ContextItem {
+    fn text(&self) -> Cow<'_, str> {
+        Cow::Borrowed(&self.0)
+    }
+    fn output(&self) -> Cow<'_, str> {
+        Cow::Borrowed(&self.0)
+    }
+}
+
+// ─── Shared skim options builder ──────────────────────────────────────────────
+
+fn build_skim_options(ctx_label: &str, kind_label: &str, show_ctx_switch: bool) -> SkimOptions {
+    let ctx_hint = if show_ctx_switch {
+        "  ctrl-x switch-ctx"
+    } else {
+        ""
+    };
+
+    SkimOptionsBuilder::default()
+        .multi(true)
+        .preview(String::new())
+        .preview_window("right:50%")
+        .height("60%")
+        .header(format!(
+            "KubeFuzz  ctx:{ctx_label}  res:{kind_label}  preview:{}\n\
+             <tab> select  <enter> describe  ctrl-l logs  ctrl-e exec  \
+             ctrl-d delete  ctrl-f forward  ctrl-r restart  ctrl-y yaml  \
+             ctrl-p preview-mode{ctx_hint}",
+            preview_mode_label()
+        ))
+        .prompt("❯ ")
+        .bind(
+            {
+                let mut binds = vec![
+                    "ctrl-l:accept".to_string(),
+                    "ctrl-e:accept".to_string(),
+                    "ctrl-d:accept".to_string(),
+                    "ctrl-f:accept".to_string(),
+                    "ctrl-r:accept".to_string(),
+                    "ctrl-y:accept".to_string(),
+                    // ctrl-p cycles preview mode in-place (does NOT exit skim)
+                    format!("ctrl-p:execute-silent({PREVIEW_TOGGLE_SCRIPT})+refresh-preview"),
+                ];
+                if show_ctx_switch {
+                    binds.push("ctrl-x:accept".to_string());
+                }
+                binds
+            },
+        )
+        .build()
+        .expect("SkimOptionsBuilder failed")
 }
 
 // ─── Action dispatch ─────────────────────────────────────────────────────────

@@ -2,6 +2,7 @@
 
 use anyhow::Result;
 use std::io::{self, Write};
+use std::process::Command;
 
 use crate::items::{K8sItem, ResourceKind};
 
@@ -19,7 +20,7 @@ pub fn install_preview_toggle() {
          printf $(( (n + 1) % 3 )) > {PREVIEW_MODE_FILE}\n"
     );
     let _ = std::fs::write(PREVIEW_TOGGLE_SCRIPT, script);
-    let _ = std::process::Command::new("chmod")
+    let _ = Command::new("chmod")
         .args(["+x", PREVIEW_TOGGLE_SCRIPT])
         .status();
     // Reset to describe mode whenever kubefuzz starts fresh
@@ -45,6 +46,18 @@ pub fn preview_mode_label() -> &'static str {
     }
 }
 
+// ─── kubectl command builder ──────────────────────────────────────────────────
+
+/// Build a `kubectl` command pre-loaded with `--context <ctx>` when the item
+/// belongs to a non-default cluster (multi-cluster mode).
+fn kubectl(item: &K8sItem) -> Command {
+    let mut cmd = Command::new("kubectl");
+    if !item.context.is_empty() {
+        cmd.args(["--context", &item.context]);
+    }
+    cmd
+}
+
 // ─── Logs ─────────────────────────────────────────────────────────────────────
 
 pub fn action_logs(items: &[&K8sItem]) -> Result<()> {
@@ -64,7 +77,7 @@ pub fn action_logs(items: &[&K8sItem]) -> Result<()> {
         if !item.namespace.is_empty() {
             args.extend_from_slice(&["-n", &item.namespace]);
         }
-        let status = std::process::Command::new("kubectl").args(&args).status()?;
+        let status = kubectl(item).args(&args).status()?;
         if !status.success() {
             eprintln!("[kubefuzz] kubectl logs exited with {status}");
         }
@@ -86,7 +99,7 @@ pub fn action_exec(item: &K8sItem) -> Result<()> {
             args.extend_from_slice(&["-n", &item.namespace]);
         }
         args.extend_from_slice(&["--", shell]);
-        let status = std::process::Command::new("kubectl").args(&args).status()?;
+        let status = kubectl(item).args(&args).status()?;
         if status.success() {
             return Ok(());
         }
@@ -108,7 +121,12 @@ pub fn action_delete(items: &[&K8sItem]) -> Result<()> {
         } else {
             format!("ns/{}", item.namespace)
         };
-        println!("  • {}/{} [{}]", item.kind.as_str(), item.name, loc);
+        let ctx_suffix = if item.context.is_empty() {
+            String::new()
+        } else {
+            format!(" @{}", item.context)
+        };
+        println!("  • {}/{} [{}]{}", item.kind.as_str(), item.name, loc, ctx_suffix);
     }
 
     print!("\nDelete {count} {noun}? [y/N] ");
@@ -127,7 +145,7 @@ pub fn action_delete(items: &[&K8sItem]) -> Result<()> {
         if !item.namespace.is_empty() {
             args.extend_from_slice(&["-n", &item.namespace]);
         }
-        let out = std::process::Command::new("kubectl").args(&args).output()?;
+        let out = kubectl(item).args(&args).output()?;
         if out.status.success() {
             println!("✓ deleted {}/{}", item.kind.as_str(), item.name);
         } else {
@@ -181,7 +199,7 @@ pub fn action_portforward(item: &K8sItem) -> Result<()> {
     println!(
         "Forwarding localhost:{local} → {target} port {remote}  (Ctrl-C to stop)"
     );
-    let status = std::process::Command::new("kubectl").args(&args).status()?;
+    let status = kubectl(item).args(&args).status()?;
     if !status.success() {
         eprintln!("[kubefuzz] port-forward exited with {status}");
     }
@@ -212,9 +230,7 @@ pub fn action_rollout_restart(items: &[&K8sItem]) -> Result<()> {
             restart_args.extend_from_slice(&["-n", &item.namespace]);
         }
 
-        let out = std::process::Command::new("kubectl")
-            .args(&restart_args)
-            .output()?;
+        let out = kubectl(item).args(&restart_args).output()?;
         if out.status.success() {
             println!("↺ restarting {target}");
             // Watch rollout status
@@ -222,9 +238,7 @@ pub fn action_rollout_restart(items: &[&K8sItem]) -> Result<()> {
             if !item.namespace.is_empty() {
                 status_args.extend_from_slice(&["-n", &item.namespace]);
             }
-            std::process::Command::new("kubectl")
-                .args(&status_args)
-                .status()?;
+            kubectl(item).args(&status_args).status()?;
         } else {
             eprintln!(
                 "✗ rollout restart failed: {}",
@@ -243,7 +257,7 @@ pub fn action_yaml(items: &[&K8sItem]) -> Result<()> {
         if !item.namespace.is_empty() {
             args.extend_from_slice(&["-n", &item.namespace]);
         }
-        let out = std::process::Command::new("kubectl").args(&args).output()?;
+        let out = kubectl(item).args(&args).output()?;
         if out.status.success() {
             print!("{}", String::from_utf8_lossy(&out.stdout));
         } else {
@@ -264,7 +278,7 @@ pub fn action_describe(items: &[&K8sItem]) -> Result<()> {
         if !item.namespace.is_empty() {
             args.extend_from_slice(&["-n", &item.namespace]);
         }
-        let out = std::process::Command::new("kubectl").args(&args).output()?;
+        let out = kubectl(item).args(&args).output()?;
         if out.status.success() {
             print!("{}", String::from_utf8_lossy(&out.stdout));
         } else {
