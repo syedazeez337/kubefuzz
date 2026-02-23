@@ -250,10 +250,13 @@ fn build_skim_options(ctx_label: &str, kind_label: &str, show_ctx_switch: bool) 
 async fn dispatch(output: SkimOutput) -> Result<()> {
     use crossterm::event::{KeyCode, KeyModifiers};
 
+    // selected_items is Vec<Arc<MatchedItem>>; MatchedItem wraps Arc<dyn SkimItem>.
+    // We must go through matched.item (the inner Arc<dyn SkimItem>) so that as_any()
+    // dispatches virtually to the concrete K8sItem — not to MatchedItem itself.
     let items: Vec<&K8sItem> = output
         .selected_items
         .iter()
-        .filter_map(|i| (**i).as_any().downcast_ref::<K8sItem>())
+        .filter_map(|matched| matched.item.as_any().downcast_ref::<K8sItem>())
         .collect();
 
     if items.is_empty() {
