@@ -64,7 +64,7 @@ pub struct K8sItem {
     pub name: String,
     pub status: String,
     pub age: String,
-    /// The cluster context this resource belongs to
+    /// The cluster context this resource belongs to (empty in single-cluster mode)
     pub context: String,
 }
 
@@ -117,27 +117,57 @@ impl K8sItem {
         }
     }
 
-    /// Machine-parseable output string for piping
+    /// Machine-parseable output string for piping.
+    /// In multi-cluster mode, prefixed with the context: "ctx:kind/ns/name"
     pub fn output_str(&self) -> String {
-        if self.namespace.is_empty() {
+        let loc = if self.namespace.is_empty() {
             format!("{}/{}", self.kind.as_str(), self.name)
         } else {
             format!("{}/{}/{}", self.kind.as_str(), self.namespace, self.name)
+        };
+        if self.context.is_empty() {
+            loc
+        } else {
+            format!("{}:{}", self.context, loc)
         }
     }
 }
 
+/// Pick a consistent color for a cluster context name based on a hash of the name.
+/// Ensures the same context always gets the same color across all items.
+fn context_color(ctx: &str) -> Color {
+    const PALETTE: &[Color] = &[
+        Color::Cyan,
+        Color::Magenta,
+        Color::Yellow,
+        Color::LightGreen,
+        Color::LightBlue,
+        Color::LightRed,
+        Color::LightCyan,
+        Color::LightMagenta,
+    ];
+    let hash: usize = ctx.bytes().fold(0usize, |acc, b| acc.wrapping_add(b as usize));
+    PALETTE[hash % PALETTE.len()]
+}
+
 impl SkimItem for K8sItem {
-    /// The text skim fuzzy-matches against — plain, no color
+    /// The text skim fuzzy-matches against — plain, no color.
+    /// In multi-cluster mode the context name is included so users can search by cluster.
     fn text(&self) -> Cow<'_, str> {
+        let ctx_prefix = if self.context.is_empty() {
+            String::new()
+        } else {
+            format!("{}/", self.context)
+        };
         let ns_prefix = if self.namespace.is_empty() {
             String::new()
         } else {
             format!("{}/", self.namespace)
         };
         Cow::Owned(format!(
-            "{:<8} {}{} {} {}",
+            "{:<8} {}{}{} {} {}",
             self.kind.as_str(),
+            ctx_prefix,
             ns_prefix,
             self.name,
             self.status,
@@ -145,7 +175,9 @@ impl SkimItem for K8sItem {
         ))
     }
 
-    /// Colored display shown in the skim list
+    /// Colored display shown in the skim list.
+    /// In multi-cluster mode a context prefix is shown before the namespace/name,
+    /// colored distinctly per cluster.
     fn display<'a>(&'a self, _context: DisplayContext) -> Line<'a> {
         let ns_prefix = if self.namespace.is_empty() {
             String::new()
@@ -153,25 +185,38 @@ impl SkimItem for K8sItem {
             format!("{}/", self.namespace)
         };
 
-        Line::from(vec![
-            Span::styled(
-                format!("{:<8} ", self.kind.as_str()),
-                Style::default().fg(self.kind.color()),
-            ),
-            Span::styled(ns_prefix, Style::default().fg(Color::Cyan)),
-            Span::styled(
-                format!("{:<48} ", self.name),
-                Style::default().fg(Color::White),
-            ),
-            Span::styled(
-                format!("{:<22} ", self.status),
-                Style::default().fg(self.status_color()),
-            ),
-            Span::styled(self.age.clone(), Style::default().fg(Color::DarkGray)),
-        ])
+        let mut spans = vec![Span::styled(
+            format!("{:<8} ", self.kind.as_str()),
+            Style::default().fg(self.kind.color()),
+        )];
+
+        // Context prefix — only shown in multi-cluster mode
+        if !self.context.is_empty() {
+            spans.push(Span::styled(
+                format!("{}/", self.context),
+                Style::default().fg(context_color(&self.context)),
+            ));
+        }
+
+        spans.push(Span::styled(ns_prefix, Style::default().fg(Color::Cyan)));
+        spans.push(Span::styled(
+            format!("{:<48} ", self.name),
+            Style::default().fg(Color::White),
+        ));
+        spans.push(Span::styled(
+            format!("{:<22} ", self.status),
+            Style::default().fg(self.status_color()),
+        ));
+        spans.push(Span::styled(
+            self.age.clone(),
+            Style::default().fg(Color::DarkGray),
+        ));
+
+        Line::from(spans)
     }
 
     /// Preview pane content — mode cycles via ctrl-p (describe → yaml → logs).
+    /// Passes --context when the item belongs to a non-default cluster.
     /// Skim calls this from a background thread; blocking is fine here.
     fn preview(&self, _context: PreviewContext) -> ItemPreview {
         let mode = crate::actions::current_preview_mode();
@@ -190,6 +235,12 @@ impl SkimItem for K8sItem {
         if !self.namespace.is_empty() {
             args.push("-n");
             args.push(&self.namespace);
+        }
+
+        // Target the correct cluster in multi-context mode
+        if !self.context.is_empty() {
+            args.push("--context");
+            args.push(&self.context);
         }
 
         match std::process::Command::new("kubectl").args(&args).output() {
