@@ -13,28 +13,28 @@
 class Kf < Formula
   desc "Fuzzy-first interactive Kubernetes resource navigator"
   homepage "https://github.com/syedazeez337/kubefuzz"
-  version "0.1.1"
+  version "0.1.2"
   license "MIT"
 
   on_macos do
     on_arm do
       url "https://github.com/syedazeez337/kubefuzz/releases/download/v#{version}/kf-aarch64-macos.tar.gz"
-      sha256 "20e14a98f3a5fe0cd18aa3e06442de6282a3a29e8a0d42f32c362bb0070c97d8"
+      sha256 "87b01e2b6ec88fb52869d7364b36eb7350313cb04546f02c32466febc90d2470"
     end
     on_intel do
       url "https://github.com/syedazeez337/kubefuzz/releases/download/v#{version}/kf-x86_64-macos.tar.gz"
-      sha256 "982c91526c9433fb9952ea8c2566154c6880acb02e808fb7c99d1b0052a8dd9e"
+      sha256 "cf068ea8f6a65c29b9e8479c1fe5cb31dc24b75312fb7441e084ab61532ab114"
     end
   end
 
   on_linux do
     on_arm do
       url "https://github.com/syedazeez337/kubefuzz/releases/download/v#{version}/kf-aarch64-linux.tar.gz"
-      sha256 "539e5dbdf5df72887b964e32de6550b232c8ab6b7b2aa709f1d99eeb75030cce"
+      sha256 "f68c11712fe93fe8079e67b00b6ec75113915a7eb96e3f9efe5e38c0ee69d8e2"
     end
     on_intel do
       url "https://github.com/syedazeez337/kubefuzz/releases/download/v#{version}/kf-x86_64-linux.tar.gz"
-      sha256 "11bc48fe7f2101d327628a409d182d4a1db763b829c2290ae82e3e6ce98341a6"
+      sha256 "9df695135f3791976252f25e0d6fcdf0da1b973ab3f53ac816005a685e8dcbeb"
     end
   end
 
