@@ -105,7 +105,16 @@ pub async fn watch_resources(
             let result = match k {
                 ResourceKind::Pod => {
                     watch_typed::<Pod, _>(
-                        c, t, ResourceKind::Pod, pod_status, ctx, ns, gi, dc, total_watchers, aid,
+                        c,
+                        t,
+                        ResourceKind::Pod,
+                        pod_status,
+                        ctx,
+                        ns,
+                        gi,
+                        dc,
+                        total_watchers,
+                        aid,
                     )
                     .await
                 }
@@ -262,7 +271,16 @@ pub async fn watch_resources(
                 }
                 ResourceKind::Job => {
                     watch_typed::<Job, _>(
-                        c, t, ResourceKind::Job, job_status, ctx, ns, gi, dc, total_watchers, aid,
+                        c,
+                        t,
+                        ResourceKind::Job,
+                        job_status,
+                        ctx,
+                        ns,
+                        gi,
+                        dc,
+                        total_watchers,
+                        aid,
                     )
                     .await
                 }
