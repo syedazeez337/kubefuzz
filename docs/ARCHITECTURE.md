@@ -180,12 +180,12 @@ pub fn runtime_dir() -> &'static PathBuf
 
 **Action functions:**
 - `action_describe(&items)` — `kubectl describe <kind> -n <ns> -- <name>` for each item
-- `action_logs(&items)` — `kubectl logs -n <ns> -- <name> --tail=200 -f`
-- `action_exec(&item)` — `kubectl exec -it -n <ns> -- <name> -- /bin/sh`
+- `action_logs(&items)` — `kubectl logs --tail=200 -n <ns> -- <name>`
+- `action_exec(&item)` — `kubectl exec -it <name> -n <ns> -- /bin/sh` (tries `/bin/sh` then `/bin/bash`)
 - `action_delete(&items)` — prompts `[y/N]`; for >10 items requires typing `"yes"` (bulk guard)
 - `action_portforward(&item)` — prompts for local and remote port (validates `u16`, rejects port 0, warns on privileged ports)
-- `action_rollout_restart(&items)` — `kubectl rollout restart <kind>/<name>`
-- `action_yaml(&items)` — `kubectl get <kind> -n <ns> -- <name> -o yaml`
+- `action_rollout_restart(&items)` — `kubectl rollout restart <kind>/<name>` then waits on `kubectl rollout status`
+- `action_yaml(&items)` — `kubectl get <kind> -o yaml -n <ns> -- <name>`
 
 All kubectl calls use `"--"` before resource names to prevent argument injection (SEC-002).
 
@@ -223,7 +223,7 @@ Keybindings use `accept` (not `execute`) so the selected items and key are retur
 ```toml
 [dependencies]
 # Fuzzy finder engine (git fork — fixes simd module visibility)
-skim = { git = "https://github.com/syedazeez337/skim", branch = "main", default-features = false }
+skim = { git = "https://github.com/syedazeez337/skim", branch = "master", default-features = false }
 
 # TUI rendering (must match skim's ratatui version)
 ratatui = "0.30"
