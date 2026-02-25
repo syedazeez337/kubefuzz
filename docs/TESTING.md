@@ -1,6 +1,6 @@
-# KubeFuzz — Feature Test Report
+# KubeFuzz — Test Report
 
-**Date**: 2026-02-23
+**Last updated**: 2026-02-25
 **Binary**: `target/release/kf` (v0.1.0)
 **Cluster**: `kind-kubefuzz-dev` (kind v1.32.0, single node)
 **Test environment**: Linux (Fedora), kubectl v1.35.0
@@ -28,6 +28,7 @@ The test cluster (`kind-kubefuzz-dev`) contains intentional diversity across all
 | testbed | cron-nightly | Scheduled | Tests CronJob watcher |
 | testbed | app-config | ConfigMap | Tests ConfigMap watcher |
 | testbed | app-secret | Opaque | Tests Secret watcher |
+| testbed | data-pvc | Pending | Tests PVC watcher |
 | demo | demo-running | Running | Cross-namespace pod |
 | demo | demo-failing | Error | Terminated pod |
 | demo | demo-pending | ImagePullBackOff | Pending pod |
@@ -43,14 +44,15 @@ The test cluster (`kind-kubefuzz-dev`) contains intentional diversity across all
 | 3 | Context Persistence | 2 | 2 | 0 | 0 |
 | 4 | Status Priority Logic | 16 | 16 | 0 | 0 |
 | 5 | kubectl Action Layer | 13 | 13 | 0 | 0 |
-| 6 | Phase 5 Multi-cluster | 4 | 4 | 0 | 0 |
+| 6 | Multi-cluster | 4 | 4 | 0 | 0 |
 | 7 | Status Extraction | 7 | 6 | 1 | 0 |
 | 8 | Demo Mode | 1 | 1 | 0 | 0 |
 | 9 | Resource Filter Aliases | 13 | 13 | 0 | 0 |
 | 10 | Safe Action Verification | 2 | 2 | 0 | 0 |
-| **Total** | | **66** | **65** | **1** | **0** |
+| 11 | TUI — Live cluster (2026-02-25) | 24 | 24 | 0 | 0 |
+| **Total** | | **90** | **89** | **1** | **0** |
 
-**Result: 65/66 PASS, 1 PARTIAL PASS, 0 FAIL**
+**Result: 89/90 PASS, 1 PARTIAL PASS, 0 FAIL**
 
 ---
 
@@ -60,9 +62,9 @@ The test cluster (`kind-kubefuzz-dev`) contains intentional diversity across all
 
 | # | Test | Result | Notes |
 |---|------|--------|-------|
-| 1 | Binary exists and is executable | ✅ PASS | `-rwxr-xr-x`, 17.7 MB |
+| 1 | Binary exists and is executable | ✅ PASS | `-rwxr-xr-x` |
 | 2 | `kf --version` | ✅ PASS | Output: `kf 0.1.0` |
-| 3 | `kf --help` shows all flags | ✅ PASS | RESOURCE arg, `--all-contexts`, `--context`, `-h`, `-V` all present |
+| 3 | `kf --help` shows all flags | ✅ PASS | RESOURCE arg, `--all-contexts`, `--context`, `-n`, `--read-only`, `--kubeconfig` all present |
 | 4 | `--all-contexts` and `--context` in help text | ✅ PASS | Descriptions match implementation |
 
 ---
@@ -71,9 +73,9 @@ The test cluster (`kind-kubefuzz-dev`) contains intentional diversity across all
 
 | # | Test | Result | Notes |
 |---|------|--------|-------|
-| 5 | Unknown resource type prints warning | ✅ PASS | `[kubefuzz] Unknown resource type 'unknowntype'. Showing all resources. Supported: pods, svc, ...` |
-| 6 | `--context does-not-exist` falls back gracefully | ✅ PASS | `[kubefuzz] No cluster (Failed to load kubeconfig context 'does-not-exist'). Showing demo data.` — no panic |
-| 7 | kubeconfig has `kind-kubefuzz-dev` context | ✅ PASS | `kubectl config get-contexts -o name` returns `kind-kubefuzz-dev` |
+| 5 | Unknown resource type prints warning | ✅ PASS | Falls back to all resources, no panic |
+| 6 | `--context does-not-exist` falls back gracefully | ✅ PASS | `[kubefuzz] No cluster (...). Showing demo data.` |
+| 7 | kubeconfig has `kind-kubefuzz-dev` context | ✅ PASS | `kubectl config get-contexts` returns it |
 | 8 | `--all-contexts` flag accepted by parser | ✅ PASS | No error on parse |
 
 ---
@@ -89,7 +91,7 @@ The test cluster (`kind-kubefuzz-dev`) contains intentional diversity across all
 
 ### GROUP 4 — Status Priority Logic (Unit Tests)
 
-All 16 cases verified by a compiled Rust test program against the `status_priority` function:
+All 16 cases covered by `cargo test`:
 
 | Status | Expected Priority | Result |
 |--------|------------------|--------|
@@ -100,13 +102,13 @@ All 16 cases verified by a compiled Rust test program against the `status_priori
 | OOMKilled | 0 (critical) | ✅ PASS |
 | NotReady | 0 (critical) | ✅ PASS |
 | Failed(3) | 0 (critical) | ✅ PASS |
+| Evicted | 0 (critical) | ✅ PASS |
+| BackOff | 0 (critical) | ✅ PASS |
 | [DELETED] | 1 (warning) | ✅ PASS |
 | Pending | 1 (warning) | ✅ PASS |
 | Terminating | 1 (warning) | ✅ PASS |
 | Init:0/1 | 1 (warning) | ✅ PASS |
 | Running | 2 (healthy) | ✅ PASS |
-| Active | 2 (healthy) | ✅ PASS |
-| ClusterIP | 2 (healthy) | ✅ PASS |
 | 3/3 | 2 (healthy) | ✅ PASS |
 | Complete | 2 (healthy) | ✅ PASS |
 
@@ -114,7 +116,7 @@ All 16 cases verified by a compiled Rust test program against the `status_priori
 
 ### GROUP 5 — kubectl Action Layer
 
-Verifies that the actual kubectl commands executed by kubefuzz's action handlers work correctly against the cluster. All 13 resource types confirmed reachable.
+All 13 resource types confirmed reachable via the live cluster:
 
 | # | Test | Result | Notes |
 |---|------|--------|-------|
@@ -122,13 +124,13 @@ Verifies that the actual kubectl commands executed by kubefuzz's action handlers
 | 12 | `kubectl describe deploy deploy-healthy -n testbed` | ✅ PASS | Full describe output |
 | 13 | `kubectl get pod pod-running -n testbed -o yaml` | ✅ PASS | Valid YAML returned |
 | 14 | `kubectl logs pod-running -n testbed --tail=5` | ✅ PASS | nginx log lines returned |
-| 15 | `kubectl logs demo-job-ztkd6 -n demo --tail=5` | ✅ PASS | "done" — completed job logs accessible |
-| 15a | pods (all namespaces) | ✅ PASS | 28 pods visible |
+| 15 | `kubectl logs demo-job-ztkd6 -n demo --tail=5` | ✅ PASS | Completed job logs accessible |
+| 15a | pods | ✅ PASS | All pods visible across namespaces |
 | 15b | deployments | ✅ PASS | 4 deployments |
 | 15c | services | ✅ PASS | 4 services |
 | 15d | nodes | ✅ PASS | 1 node |
 | 15e | namespaces | ✅ PASS | 7 namespaces |
-| 15f | configmaps | ✅ PASS | 17 configmaps |
+| 15f | configmaps | ✅ PASS | All configmaps |
 | 15g | secrets | ✅ PASS | 3 secrets |
 | 15h | pvc | ✅ PASS | 1 PVC |
 | 15i | jobs | ✅ PASS | 4 jobs |
@@ -139,32 +141,30 @@ Verifies that the actual kubectl commands executed by kubefuzz's action handlers
 
 ---
 
-### GROUP 6 — Phase 5: Multi-cluster
+### GROUP 6 — Multi-cluster
 
 | # | Test | Result | Notes |
 |---|------|--------|-------|
-| 16 | `list_contexts()` returns expected context | ✅ PASS | `kind-kubefuzz-dev` returned |
-| 17 | `kf --context kind-kubefuzz-dev` accepted | ✅ PASS | No panic; TUI init fails only due to no real TTY in test harness (expected) |
+| 16 | `list_contexts()` returns expected contexts | ✅ PASS | `kind-kubefuzz-dev`, `kind-cilium-test` returned |
+| 17 | `kf --context kind-kubefuzz-dev` connects and streams | ✅ PASS | TUI opens, all resources load |
 | 18 | Context file write/read round-trip | ✅ PASS | Persistent across invocations |
-| 19 | `--all-contexts` flag shown in `--help` | ✅ PASS | "Watch resources from all kubeconfig contexts simultaneously" |
+| 19 | `kf --all-contexts pod` shows both clusters | ✅ PASS | `kind-kubefuzz-dev/` and `kind-cilium-test/` prefixes visible, cross-cluster preview works |
 
 ---
 
 ### GROUP 7 — Status Extraction Correctness
 
-Verifies that the raw Kubernetes API data matches what kubefuzz's status extractor functions produce.
+| # | Pod / Resource | Raw value | kubefuzz shows | Result |
+|---|----------------|-----------|----------------|--------|
+| 20 | pod-crashloop | `CrashLoopBackOff` (waiting.reason) | `CrashLoopBackOff` | ✅ PASS |
+| 21 | pod-imagepull | `ImagePullBackOff` (waiting.reason) | `ImagePullBackOff` | ✅ PASS |
+| 22 | pod-init-wait | *(init container running, no waiting.reason)* | `Init:0/1` (from container count) | ⚠️ PARTIAL |
+| 23 | pod-running | `Running` (phase) | `Running` | ✅ PASS |
+| 24 | demo-failing | `Error` (terminated.reason) | `Error` | ✅ PASS |
+| 25 | deploy-healthy | `readyReplicas/spec.replicas` = `2/2` | `2/2` | ✅ PASS |
+| 26 | deploy-degraded | `0/3` (readyReplicas absent → 0) | `0/3` | ✅ PASS |
 
-| # | Pod / Resource | jsonpath query | Raw value | kubefuzz shows | Result |
-|---|----------------|----------------|-----------|----------------|--------|
-| 20 | pod-crashloop | `.status.containerStatuses[0].state.waiting.reason` | `CrashLoopBackOff` | `CrashLoopBackOff` | ✅ PASS |
-| 21 | pod-imagepull | `.status.containerStatuses[0].state.waiting.reason` | `ImagePullBackOff` | `ImagePullBackOff` | ✅ PASS |
-| 22 | pod-init-wait | `.status.initContainerStatuses[0].state.waiting.reason` | *(empty — init is Running)* | `Init:0/1` (from container count) | ⚠️ PARTIAL |
-| 23 | pod-running | `.status.phase` | `Running` | `Running` | ✅ PASS |
-| 24 | demo-failing | `.status.containerStatuses[0].state.terminated.reason` | `Error` | `Error` | ✅ PASS |
-| 25 | deploy-healthy | `readyReplicas/spec.replicas` | `2/2` | `2/2` | ✅ PASS |
-| 26 | deploy-degraded | `readyReplicas/spec.replicas` | `0/3` (field absent → 0) | `0/3` | ✅ PASS |
-
-**Note on test 22:** `pod-init-wait` runs `busybox sleep infinity` as its init container. Since the init container is actively running (not waiting), the `.state.waiting.reason` field is empty. Kubefuzz's `pod_status()` correctly falls back to the init container progress counter, producing `Init:0/1` by comparing the count of terminated (exit 0) init containers against total init containers. This is the correct `kubectl get pods`-style output and matches what `kubectl get pod pod-init-wait -n testbed` shows.
+**Note on test 22:** The init container is actively running (not waiting), so `.state.waiting.reason` is absent. `pod_status()` correctly falls back to the init container progress counter, producing `Init:0/1`. This matches `kubectl get pods` output exactly.
 
 ---
 
@@ -172,29 +172,27 @@ Verifies that the raw Kubernetes API data matches what kubefuzz's status extract
 
 | # | Test | Result | Notes |
 |---|------|--------|-------|
-| 27 | `KUBECONFIG=/nonexistent kf` shows demo data | ✅ PASS | `[kubefuzz] No cluster (...). Showing demo data.` — 11 fake resources injected |
+| 27 | `KUBECONFIG=/nonexistent kf` shows demo data | ✅ PASS | `[kubefuzz] No cluster (...). Showing demo data.` — 11 sample resources |
 
 ---
 
 ### GROUP 9 — Resource Filter Aliases
 
-All 13 resource type aliases tested. Each either resolves correctly or prints the expected unknown-type warning.
-
-| Alias | Result | Notes |
-|-------|--------|-------|
-| `kf pods` | ✅ PASS | Resolved to Pod filter |
-| `kf svc` | ✅ PASS | Resolved to Service filter |
-| `kf deploy` | ✅ PASS | Resolved to Deployment filter |
-| `kf sts` | ✅ PASS | Resolved to StatefulSet filter |
-| `kf ds` | ✅ PASS | Resolved to DaemonSet filter |
-| `kf cm` | ✅ PASS | Resolved to ConfigMap filter |
-| `kf secret` | ✅ PASS | Resolved to Secret filter |
-| `kf node` | ✅ PASS | Resolved to Node filter |
-| `kf ns` | ✅ PASS | Resolved to Namespace filter |
-| `kf pvc` | ✅ PASS | Resolved to PVC filter |
-| `kf job` | ✅ PASS | Resolved to Job filter |
-| `kf cj` | ✅ PASS | Resolved to CronJob filter |
-| `kf badtype` | ✅ PASS | Prints warning with full supported-types list, continues |
+| Alias | Result |
+|-------|--------|
+| `kf pods` | ✅ PASS |
+| `kf svc` | ✅ PASS |
+| `kf deploy` | ✅ PASS |
+| `kf sts` | ✅ PASS |
+| `kf ds` | ✅ PASS |
+| `kf cm` | ✅ PASS |
+| `kf secret` | ✅ PASS |
+| `kf node` | ✅ PASS |
+| `kf ns` | ✅ PASS |
+| `kf pvc` | ✅ PASS |
+| `kf job` | ✅ PASS |
+| `kf cj` | ✅ PASS |
+| `kf badtype` | ✅ PASS (warning + fallback to all) |
 
 ---
 
@@ -202,56 +200,56 @@ All 13 resource type aliases tested. Each either resolves correctly or prints th
 
 | # | Test | Result | Notes |
 |---|------|--------|-------|
-| 29 | Rollout restart (live against deploy-healthy) | ✅ PASS | `deployment.apps/deploy-healthy restarted` — immediately rolled back |
-| 30 | Delete dry-run | ✅ PASS | `pod "pod-running" deleted (dry run)` |
+| 28 | Rollout restart (live against deploy-healthy) | ✅ PASS | `↺ restarting deploy/deploy-healthy` — rollout status tracked to completion |
+| 29 | Delete dry-run | ✅ PASS | Confirmation prompt shown before any deletion |
 
 ---
 
-## TUI Features — Manual Test Coverage
+### GROUP 11 — TUI Live Testing (2026-02-25, kind-kubefuzz-dev)
 
-The following features require an interactive terminal and cannot be verified in a non-TTY test harness. They are documented here for manual sign-off.
+All features tested interactively against the live cluster using tmux.
 
-| Feature | How to test | Status |
-|---------|-------------|--------|
-| Fuzzy search filters items in real-time | Run `kf`, type partial resource name | Requires manual |
-| Items display with color (kind/status columns) | Run `kf`, verify colored columns | Requires manual |
-| Unhealthy items appear at top of list | Run `kf`, check CrashLoop/Error pods are first | Requires manual |
-| `<tab>` multi-select highlights multiple items | Run `kf pods`, tab on several pods | Requires manual |
-| `<enter>` runs describe | Run `kf pods`, press enter on pod | Requires manual |
-| `ctrl-l` streams logs | Run `kf pods`, select running pod, ctrl-l | Requires manual |
-| `ctrl-e` exec into shell | Run `kf pods`, select running pod, ctrl-e | Requires manual |
-| `ctrl-d` delete with y/N prompt | Run `kf pods`, select pod, ctrl-d, press N | Requires manual |
-| `ctrl-f` port-forward prompts for ports | Run `kf pods`, select pod, ctrl-f | Requires manual |
-| `ctrl-r` rollout restart | Run `kf deploy`, select deploy, ctrl-r | Requires manual |
-| `ctrl-y` prints YAML to stdout | Run `kf`, select resource, ctrl-y | Requires manual |
-| `ctrl-p` cycles preview: describe → yaml → logs | Run `kf pods`, press ctrl-p twice | Requires manual |
-| Preview pane shows `kubectl describe` output | Run `kf`, select any resource, check right pane | Requires manual |
-| Preview pane uses `--context` in multi-cluster mode | Run `kf --all-contexts`, check preview pane | Requires manual |
-| `ctrl-x` opens context picker | Run `kf`, press ctrl-x, select context | Requires manual |
-| `ctrl-x` restarts stream on new context | Switch context via ctrl-x, verify items reload | Requires manual |
-| `--all-contexts` shows items from all clusters | Run `kf --all-contexts`, verify context prefix in list | Requires manual |
-| Color-coding per cluster in `--all-contexts` | Run `kf --all-contexts` with 2+ clusters | Requires manual (need 2nd cluster) |
-| Last-used context restored on restart | ctrl-x → select context → close → reopen | Requires manual |
-| Live watch: new pod appears without restart | `kubectl run test --image=nginx` while `kf` open | Requires manual |
-| Live watch: pod deletion shows [DELETED] | `kubectl delete pod` while `kf` open | Requires manual |
-| Live watch: status change updates in-place | Wait for CrashLoop backoff to reset | Requires manual |
-| Header shows current context name | Run `kf`, check top header line | Requires manual |
-| Demo mode shows 11 fake items in TUI | Run with `KUBECONFIG=/nonexistent kf` in real terminal | Requires manual |
+| # | Feature | Test | Result | Notes |
+|---|---------|------|--------|-------|
+| 30 | Fuzzy filter | Type `pod-crash` | ✅ PASS | `1/77` match, instant |
+| 31 | Unhealthy-first sort | Scroll to top in `kf pod` | ✅ PASS | `ImagePullBackOff`, `CrashLoopBackOff`, `Error` at top; `Running`/`Succeeded` at bottom |
+| 32 | Color-coded status | Inspect list visually | ✅ PASS | Red/Yellow/Green per health tier |
+| 33 | Preview: describe | Hover over pod-crashloop | ✅ PASS | Full `kubectl describe pod -n testbed` in right pane |
+| 34 | Preview: yaml (ctrl-p ×1) | Cycle on pod-crashloop | ✅ PASS | `── YAML: pod/pod-crashloop ──` with full manifest |
+| 35 | Preview: logs (ctrl-p ×2) | Cycle on pod-crashloop | ✅ PASS | `── LOGS: pod-crashloop (last 100) ──` |
+| 36 | Preview cycle wrap (ctrl-p ×3) | Back to describe | ✅ PASS | Wraps correctly describe→yaml→logs→describe |
+| 37 | Resource filter | `kf pod --context kind-kubefuzz-dev` | ✅ PASS | Header shows `res:pod`, only pods listed |
+| 38 | Namespace filter | `kf -n testbed` | ✅ PASS | Header shows `ns:testbed`; cluster-scoped resources still appear |
+| 39 | Read-only mode | `kf --read-only` | ✅ PASS | Header shows `[READ-ONLY]` |
+| 40 | Read-only blocks exec | `ctrl-e` in read-only | ✅ PASS | `[kubefuzz] read-only mode: exec is disabled` |
+| 41 | Read-only blocks delete | `ctrl-d` in read-only | ✅ PASS | `[kubefuzz] read-only mode: delete is disabled` |
+| 42 | Multi-cluster mode | `kf --all-contexts pod` | ✅ PASS | Both `kind-kubefuzz-dev/` and `kind-cilium-test/` prefixes; cross-cluster preview works |
+| 43 | ctrl-l logs | `pod-running` | ✅ PASS | nginx access logs printed to terminal |
+| 44 | ctrl-y yaml | `pod-running` | ✅ PASS | `apiVersion: v1 / kind: Pod` output to terminal |
+| 45 | ctrl-r rollout restart | `deploy-healthy` | ✅ PASS | `↺ restarting deploy/deploy-healthy` + rollout status tracked |
+| 46 | ctrl-e exec | `pod-running` | ✅ PASS | `Dropping into shell: testbed/pod-running` → `#` prompt inside Debian container; `hostname` returned `pod-running` |
+| 47 | ctrl-d delete single | `delete-me` pod (throwaway) | ✅ PASS | `• pod/delete-me [ns/testbed]` prompt → confirmed `y` → `✓ deleted pod/delete-me` |
+| 48 | ctrl-d delete multi-select | `delete-me` + `delete-me-2` (tab×2) | ✅ PASS | Both `>>` selected; both deleted; confirmed via `kubectl get pods` |
+| 49 | ctrl-d confirmation prompt | Count + resource list | ✅ PASS | Shows `Delete 2 resources? [y/N]` with bullet list |
+| 50 | ctrl-f port-forward (service) | `svc-clusterip` → `8888:80` | ✅ PASS | `Forwarding localhost:8888 → svc/svc-clusterip port 80`; `curl localhost:8888` → nginx HTML; `Handling connection for 8888` logged |
+| 51 | ctrl-f port-forward (pod) | `pod-running` → `9999:80` | ✅ PASS | `Forwarding localhost:9999 → pod/pod-running port 80`; `curl localhost:9999` → `<title>Welcome to nginx!</title>` |
+| 52 | ctrl-f guard (non-pod/svc) | `ctrl-f` on ConfigMap | ✅ PASS | `[kubefuzz] port-forward only works with pods and services (got cm)` |
+| 53 | Privileged port warning | Remote port 80 | ✅ PASS | `[kubefuzz] warning: port 80 is privileged (may require root/admin)` |
 
 ---
 
 ## Known Behaviors
 
-**`os error 6` in non-TTY test harness** — All tests that invoke the binary without a real terminal (piped stdin, CI shell) exit with "No such device or address (os error 6)". This is skim's correct behavior when no TTY is available. In a real terminal, the TUI opens normally.
+**`os error 6` in non-TTY test harness** — Binaries invoked without a real terminal (piped stdin, CI) exit with this error. This is skim's correct behavior. In a real terminal the TUI opens normally.
 
-**`kubectl rollout restart --dry-run` not supported** — `kubectl rollout restart` does not accept `--dry-run=client`. The live command was tested and rolled back immediately. This is a kubectl limitation, not a kubefuzz bug.
+**`kubectl rollout restart --dry-run` not supported** — kubectl does not accept `--dry-run=client` for rollout restart. The live command was used and rolled back immediately.
 
-**pod-init-wait init container `waiting.reason` empty** — The init container is in `running` state (not `waiting`), so the `.state.waiting.reason` field is absent from the API response. Kubefuzz correctly falls back to the container progress counter (`Init:0/1`), which matches `kubectl get pods` output exactly.
+**pod-init-wait init container `waiting.reason` empty** — The init container is in `running` state, so `.state.waiting.reason` is absent. `pod_status()` correctly falls back to the container progress counter (`Init:0/1`), matching `kubectl get pods` output exactly.
+
+**TUI relaunch after action** — After every action (describe, logs, yaml, etc.), the skim TUI relaunches immediately. Action output printed to stdout may be briefly overwritten by skim. This is by design — the loop keeps kf alive for sequential actions without restarting.
 
 ---
 
 ## Conclusion
 
-KubeFuzz passes all 66 automated tests (65 full pass, 1 partial pass with confirmed correct behavior). All 13 resource types are reachable via the Kubernetes API. All CLI flags parse correctly. Status priority sorting logic is verified across all 16 status categories. The Phase 5 multi-cluster layer (context persistence, `--context` flag, `list_contexts`, graceful fallback for invalid contexts) works as designed.
-
-The 24 TUI-dependent features require a real terminal session for visual confirmation.
+KubeFuzz passes **89/90 tests** (89 full pass, 1 partial pass with confirmed correct behavior, 0 fail). All 13 resource types are reachable. All CLI flags parse correctly. Status priority logic is verified across all status categories. All 9 interactive actions (describe, logs, exec, delete, port-forward, rollout-restart, yaml, preview cycling, read-only blocking) confirmed working against a live kind cluster.

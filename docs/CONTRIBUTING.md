@@ -28,7 +28,7 @@ sudo pacman -S ncurses pkgconf
 # 4. Build
 cargo build
 
-# 5. Run
+# 5. Run (needs a kubeconfig; falls back to demo mode automatically if none found)
 cargo run
 
 # 6. Tests
@@ -62,6 +62,6 @@ chore: update skim to 0.16
 
 ## Current Priority
 
-See `docs/ROADMAP.md`. We are at **Phase 0**.
+See `docs/ROADMAP.md`. Phases 0–5 are complete. We are working on **Phase 6** (distribution and polish).
 
-The most valuable contribution right now: get Phase 0 → Phase 1 working on Linux with a real kind cluster.
+The most valuable contributions right now: pre-built release binaries, shell completions, and a demo GIF.
