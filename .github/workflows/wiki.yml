@@ -1,0 +1,42 @@
+name: Sync Wiki
+
+# Pushes the contents of wiki/ to the GitHub wiki repo whenever they change.
+#
+# BOOTSTRAP: Before this workflow can run successfully, someone must create
+# the first wiki page via the GitHub web UI:
+#   https://github.com/syedazeez337/kubefuzz/wiki/new
+# After that one-time click the wiki git repo exists and this action takes over.
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'wiki/**'
+
+jobs:
+  sync:
+    name: Sync wiki pages
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Push wiki pages to wiki repo
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config --global user.name  "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+          WIKI_URL="https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.wiki.git"
+
+          git clone "$WIKI_URL" /tmp/wiki-repo
+          cp wiki/*.md /tmp/wiki-repo/
+          cd /tmp/wiki-repo
+
+          git add .
+          git diff --cached --quiet && echo "No wiki changes." && exit 0
+          git commit -m "docs: sync wiki from main repo @ ${{ github.sha }}"
+          git push
