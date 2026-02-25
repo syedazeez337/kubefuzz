@@ -50,7 +50,7 @@ pub const ALL_KINDS: &[ResourceKind] = &[
 /// Watch the given resource kinds from the cluster, streaming live updates into skim.
 /// `context` is a display label attached to every item (empty string in single-cluster mode).
 /// Initial items from ALL watchers are collected into a shared buffer and sent as a single
-/// globally-sorted (unhealthy first) batch once every watcher has completed its InitDone.
+/// globally-sorted (unhealthy first) batch once every watcher has completed its `InitDone`.
 /// Falls back to sending whatever was collected after 8 seconds to handle slow/failing watchers.
 /// Subsequent Apply/Delete events are streamed in real-time.
 /// Automatically reconnects on watch failures via `default_backoff`.
@@ -74,8 +74,8 @@ pub async fn watch_resources(
         let all_init_done = all_init_done.clone();
         tokio::spawn(async move {
             tokio::select! {
-                _ = all_init_done.notified() => {}
-                _ = tokio::time::sleep(Duration::from_secs(8)) => {}
+                () = all_init_done.notified() => {}
+                () = tokio::time::sleep(Duration::from_secs(8)) => {}
             }
             let mut buf = global_init.lock().unwrap();
             buf.sort_by_key(|item| std::cmp::Reverse(status_priority(item.status())));
@@ -323,8 +323,8 @@ pub async fn watch_resources(
 /// Lifecycle:
 /// - `Init`      → new watch cycle starting; clear the init buffer.
 /// - `InitApply` → existing object; buffer it.
-/// - `InitDone`  → on first init: push to global buffer and signal coordinator.
-///                 on reconnects: sort locally and send directly to skim.
+/// - `InitDone`  → on first init: push to global buffer and signal coordinator;
+///   on reconnects: sort locally and send directly to skim.
 /// - `Apply`     → live add/modify; send immediately.
 /// - `Delete`    → live deletion; send with `[DELETED]` status so it's visible.
 ///
@@ -388,20 +388,7 @@ where
 
             // ── Initial list complete ─────────────────────────────────────────
             Ok(watcher::Event::InitDone) => {
-                if !first_init_done {
-                    // First init: push into the shared global buffer. The coordinator
-                    // task in watch_resources will do a single globally-sorted send
-                    // once all watchers (or the 8s timeout) complete.
-                    {
-                        let mut buf = global_init.lock().unwrap();
-                        buf.extend(init_batch.drain(..));
-                    }
-                    let finished = done_count.fetch_add(1, Ordering::SeqCst) + 1;
-                    if finished >= total_watchers {
-                        all_init_done.notify_one();
-                    }
-                    first_init_done = true;
-                } else {
+                if first_init_done {
                     // Reconnect after a watch error: sort this watcher's batch locally
                     // and send directly — global coordination already happened.
                     // Skim renders higher-indexed items at the TOP of the list.
@@ -415,6 +402,19 @@ where
                     if !sorted.is_empty() && tx.send(sorted).is_err() {
                         break;
                     }
+                } else {
+                    // First init: push into the shared global buffer. The coordinator
+                    // task in watch_resources will do a single globally-sorted send
+                    // once all watchers (or the 8s timeout) complete.
+                    {
+                        let mut buf = global_init.lock().unwrap();
+                        buf.extend(init_batch.drain(..));
+                    }
+                    let finished = done_count.fetch_add(1, Ordering::SeqCst) + 1;
+                    if finished >= total_watchers {
+                        all_init_done.notify_one();
+                    }
+                    first_init_done = true;
                 }
                 in_init = false;
             }
