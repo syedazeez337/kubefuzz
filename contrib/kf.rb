@@ -19,22 +19,22 @@ class Kf < Formula
   on_macos do
     on_arm do
       url "https://github.com/syedazeez337/kubefuzz/releases/download/v#{version}/kf-aarch64-macos.tar.gz"
-      sha256 "PLACEHOLDER_AARCH64_MACOS"
+      sha256 "b4f0dca348998b5e83f9a25597008f656a549a4c8a003c52780ede536d518759"
     end
     on_intel do
       url "https://github.com/syedazeez337/kubefuzz/releases/download/v#{version}/kf-x86_64-macos.tar.gz"
-      sha256 "PLACEHOLDER_X86_64_MACOS"
+      sha256 "ac072730787f6aad607248002ae3e6d091804649c95bed76ed0c985d2ef53ff2"
     end
   end
 
   on_linux do
     on_arm do
       url "https://github.com/syedazeez337/kubefuzz/releases/download/v#{version}/kf-aarch64-linux.tar.gz"
-      sha256 "PLACEHOLDER_AARCH64_LINUX"
+      sha256 "b18c666a02c1cc5c73f3fcf5f81abab974fd9c5032de5d83c994bb053b095c33"
     end
     on_intel do
       url "https://github.com/syedazeez337/kubefuzz/releases/download/v#{version}/kf-x86_64-linux.tar.gz"
-      sha256 "PLACEHOLDER_X86_64_LINUX"
+      sha256 "3a9456b411db3d616d27f8e1ed0aa357d3918984506c6583b2e2c397bdd5a637"
     end
   end
 
