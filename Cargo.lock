@@ -1335,9 +1335,9 @@ dependencies = [
 
 [[package]]
 name = "interprocess"
-version = "2.4.0"
+version = "2.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6be5e5c847dbdb44564bd85294740d031f4f8aeb3464e5375ef7141f7538db69"
+checksum = "53bf2b0e0785c5394a7392f66d7c4fb9c653633c29b27a932280da3cb344c66a"
 dependencies = [
  "doctest-file",
  "futures-core",
@@ -2726,7 +2726,8 @@ checksum = "b2aa850e253778c88a04c3d7323b043aeda9d3e30d5971937c1855769763678e"
 [[package]]
 name = "skim"
 version = "3.5.0"
-source = "git+https://github.com/syedazeez337/skim?branch=master#205fdf610ac4556e8ccca5ae270f2d5225a6365f"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "656adb5bb5f4f73007899d686a56a97c6e92dfcc1113edb9299691a8315a21dc"
 dependencies = [
  "ansi-to-tui",
  "assert_enum_variants",

@@ -14,10 +14,8 @@ name = "kf"
 path = "src/main.rs"
 
 [dependencies]
-# Fuzzy finder engine — using a git fork because crates.io 3.4.0 is broken
-# with frizbee 0.8.2 (simd module became private). This fork has the fix.
-# default-features = false skips the skim CLI binary.
-skim = { git = "https://github.com/syedazeez337/skim", branch = "master", default-features = false }
+# Fuzzy finder engine — default-features = false skips the skim CLI binary.
+skim = { version = "3.5.0", default-features = false }
 
 # TUI rendering — must match skim's ratatui version
 ratatui = "0.30"
