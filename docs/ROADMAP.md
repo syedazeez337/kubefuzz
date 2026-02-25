@@ -77,7 +77,7 @@
 - [x] GitHub Releases with pre-built binaries (x86_64 + arm64, linux + macos) — `.github/workflows/release.yml`
 - [x] Homebrew formula — `contrib/kf.rb` (update sha256 after tagging)
 - [x] AUR package for Arch Linux — `contrib/PKGBUILD`
-- [ ] README demo GIF (vhs or asciinema) — tape script at `contrib/kf.tape`; run after cluster setup
+- [x] README demo GIF — recorded with vhs (`contrib/kf.tape`), published at `docs/demo.gif`
 
 ---
 
