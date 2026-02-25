@@ -101,10 +101,11 @@ pub fn action_logs(items: &[&K8sItem]) -> Result<()> {
             continue;
         }
         println!("\n─── logs: {}/{} ───", item.namespace(), item.name());
-        let mut args = vec!["logs", "--tail=200", "--", item.name()];
+        let mut args = vec!["logs", "--tail=200"];
         if !item.namespace().is_empty() {
             args.extend_from_slice(&["-n", item.namespace()]);
         }
+        args.extend_from_slice(&["--", item.name()]);
         let status = kubectl(item).args(&args).status()?;
         if !status.success() {
             eprintln!("[kubefuzz] kubectl logs exited with {status}");
@@ -185,10 +186,11 @@ pub fn action_delete(items: &[&K8sItem]) -> Result<()> {
     }
 
     for item in items {
-        let mut args = vec!["delete", item.kind().as_str(), "--", item.name()];
+        let mut args = vec!["delete", item.kind().as_str()];
         if !item.namespace().is_empty() {
             args.extend_from_slice(&["-n", item.namespace()]);
         }
+        args.extend_from_slice(&["--", item.name()]);
         let out = kubectl(item).args(&args).output()?;
         if out.status.success() {
             println!("✓ deleted {}/{}", item.kind().as_str(), item.name());
@@ -310,10 +312,11 @@ pub fn action_rollout_restart(items: &[&K8sItem]) -> Result<()> {
 
 pub fn action_yaml(items: &[&K8sItem]) -> Result<()> {
     for item in items {
-        let mut args = vec!["get", item.kind().as_str(), "--", item.name(), "-o", "yaml"];
+        let mut args = vec!["get", item.kind().as_str(), "-o", "yaml"];
         if !item.namespace().is_empty() {
             args.extend_from_slice(&["-n", item.namespace()]);
         }
+        args.extend_from_slice(&["--", item.name()]);
         let out = kubectl(item).args(&args).output()?;
         if out.status.success() {
             print!("{}", String::from_utf8_lossy(&out.stdout));
@@ -331,10 +334,11 @@ pub fn action_yaml(items: &[&K8sItem]) -> Result<()> {
 
 pub fn action_describe(items: &[&K8sItem]) -> Result<()> {
     for item in items {
-        let mut args = vec!["describe", item.kind().as_str(), "--", item.name()];
+        let mut args = vec!["describe", item.kind().as_str()];
         if !item.namespace().is_empty() {
             args.extend_from_slice(&["-n", item.namespace()]);
         }
+        args.extend_from_slice(&["--", item.name()]);
         let out = kubectl(item).args(&args).output()?;
         if out.status.success() {
             print!("{}", String::from_utf8_lossy(&out.stdout));
