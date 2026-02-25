@@ -12,7 +12,8 @@ mod k8s;
 
 use anyhow::Result;
 // RST-007: imports moved to module top
-use clap::Parser;
+use clap::{CommandFactory, Parser};
+use clap_complete::generate;
 use cli::Args;
 use crossterm::event::{KeyCode, KeyModifiers};
 use items::{K8sItem, ResourceKind};
@@ -34,6 +35,21 @@ use actions::{
 #[tokio::main]
 async fn main() -> Result<()> {
     let args = Args::parse();
+
+    // Shell completions — print and exit before any cluster I/O.
+    if let Some(shell) = args.completions {
+        let mut cmd = Args::command();
+        generate(shell, &mut cmd, "kf", &mut std::io::stdout());
+        return Ok(());
+    }
+
+    // Man page — print and exit before any cluster I/O.
+    if args.mangen {
+        let cmd = Args::command();
+        let man = clap_mangen::Man::new(cmd);
+        man.render(&mut std::io::stdout())?;
+        return Ok(());
+    }
 
     // Write the preview-toggle shell script and reset mode to 0 (describe)
     install_preview_toggle();

@@ -1,4 +1,5 @@
 use clap::Parser;
+use clap_complete::Shell;
 
 use crate::items::ResourceKind;
 
@@ -36,6 +37,16 @@ pub struct Args {
     /// Path to kubeconfig file. Defaults to $KUBECONFIG or ~/.kube/config.
     #[arg(long, value_name = "PATH")]
     pub kubeconfig: Option<String>,
+
+    /// Print shell completions for SHELL to stdout and exit.
+    /// Example: `kf --completions bash >> ~/.bash_completion`
+    #[arg(long, value_name = "SHELL", hide = true)]
+    pub completions: Option<Shell>,
+
+    /// Print the man page to stdout and exit.
+    /// Example: `kf --mangen | gzip > /usr/share/man/man1/kf.1.gz`
+    #[arg(long, hide = true)]
+    pub mangen: bool,
 }
 
 impl Args {
@@ -83,6 +94,8 @@ mod tests {
             namespace: None,
             read_only: false,
             kubeconfig: None,
+            completions: None,
+            mangen: false,
         }
     }
 
@@ -164,6 +177,8 @@ mod tests {
             namespace: None,
             read_only: false,
             kubeconfig: None,
+            completions: None,
+            mangen: false,
         };
         assert!(args.resource_filter().is_none());
     }

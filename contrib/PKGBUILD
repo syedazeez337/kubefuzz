@@ -1,0 +1,45 @@
+# Maintainer: Syed Azeez <https://github.com/syedazeez337>
+pkgname=kubefuzz
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Fuzzy-first interactive Kubernetes resource navigator"
+arch=('x86_64' 'aarch64')
+url="https://github.com/syedazeez337/kubefuzz"
+license=('MIT')
+depends=('kubectl')
+makedepends=('cargo')
+source=("$pkgname-$pkgver.tar.gz::$url/archive/v$pkgver.tar.gz")
+sha256sums=('SKIP')
+
+prepare() {
+    cd "$pkgname-$pkgver"
+    cargo fetch --locked --target "$CARCH-unknown-linux-gnu"
+}
+
+build() {
+    cd "$pkgname-$pkgver"
+    export RUSTUP_TOOLCHAIN=stable
+    export CARGO_TARGET_DIR=target
+    cargo build --release --locked --offline
+}
+
+package() {
+    cd "$pkgname-$pkgver"
+    local bin=target/release/kf
+
+    install -Dm755 "$bin" "$pkgdir/usr/bin/kf"
+
+    # Shell completions
+    "$bin" --completions bash | install -Dm644 /dev/stdin \
+        "$pkgdir/usr/share/bash-completion/completions/kf"
+    "$bin" --completions zsh | install -Dm644 /dev/stdin \
+        "$pkgdir/usr/share/zsh/site-functions/_kf"
+    "$bin" --completions fish | install -Dm644 /dev/stdin \
+        "$pkgdir/usr/share/fish/vendor_completions.d/kf.fish"
+
+    # Man page
+    "$bin" --mangen | install -Dm644 /dev/stdin \
+        "$pkgdir/usr/share/man/man1/kf.1"
+
+    install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}
