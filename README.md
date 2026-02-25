@@ -41,6 +41,8 @@ cargo build --release
 sudo mv target/release/kf /usr/local/bin/kf
 ```
 
+> **Note:** The skim dependency is pulled automatically from a patched git fork during `cargo build`. No separate clone is required.
+
 ---
 
 ## Usage
@@ -182,13 +184,23 @@ KUBECONFIG=/nonexistent kf
 
 ---
 
+## Additional Options
+
+```bash
+kf -n production          # restrict to the 'production' namespace
+kf --read-only            # disable delete, exec, port-forward, rollout-restart
+kf --kubeconfig ~/alt.yaml --context staging  # use an alternate kubeconfig
+```
+
+---
+
 ## Config & State
 
 | File | Purpose |
 |------|---------|
 | `~/.config/kubefuzz/last_context` | Last-used context, restored on next launch |
-| `/tmp/kubefuzz-preview-mode` | Preview mode state (0=describe, 1=yaml, 2=logs) |
-| `/tmp/kubefuzz-preview-toggle` | Shell script installed at startup for ctrl-p |
+| `$XDG_RUNTIME_DIR/<pid>/preview-mode` | Preview mode state (0=describe, 1=yaml, 2=logs) |
+| `$XDG_RUNTIME_DIR/<pid>/preview-toggle` | Shell script installed at startup for ctrl-p |
 
 ---
 
