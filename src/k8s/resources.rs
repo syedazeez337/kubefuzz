@@ -17,7 +17,16 @@ use kube::{
 };
 use serde::de::DeserializeOwned;
 use skim::SkimItemSender;
-use std::{fmt::Debug, pin::pin, sync::Arc};
+use std::{
+    fmt::Debug,
+    pin::pin,
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc, Mutex,
+    },
+    time::Duration,
+};
+use tokio::sync::Notify;
 
 use crate::items::{K8sItem, ResourceKind};
 
@@ -40,7 +49,9 @@ pub const ALL_KINDS: &[ResourceKind] = &[
 
 /// Watch the given resource kinds from the cluster, streaming live updates into skim.
 /// `context` is a display label attached to every item (empty string in single-cluster mode).
-/// Initial items are sorted (unhealthy first) and sent as a batch at `InitDone`.
+/// Initial items from ALL watchers are collected into a shared buffer and sent as a single
+/// globally-sorted (unhealthy first) batch once every watcher has completed its InitDone.
+/// Falls back to sending whatever was collected after 8 seconds to handle slow/failing watchers.
 /// Subsequent Apply/Delete events are streamed in real-time.
 /// Automatically reconnects on watch failures via `default_backoff`.
 pub async fn watch_resources(
@@ -50,6 +61,34 @@ pub async fn watch_resources(
     context: &str,
     namespace: Option<&str>,
 ) -> Result<()> {
+    let total_watchers = kinds.len();
+    let global_init: Arc<Mutex<Vec<K8sItem>>> = Arc::new(Mutex::new(Vec::new()));
+    let done_count: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
+    let all_init_done: Arc<Notify> = Arc::new(Notify::new());
+
+    // Coordinator task: waits for all watchers to finish initial list (or 8s timeout),
+    // then globally sorts and sends the full initial batch to skim.
+    {
+        let global_init = global_init.clone();
+        let tx_coord = tx.clone();
+        let all_init_done = all_init_done.clone();
+        tokio::spawn(async move {
+            tokio::select! {
+                _ = all_init_done.notified() => {}
+                _ = tokio::time::sleep(Duration::from_secs(8)) => {}
+            }
+            let mut buf = global_init.lock().unwrap();
+            buf.sort_by_key(|item| std::cmp::Reverse(status_priority(item.status())));
+            let sorted: Vec<Arc<dyn skim::SkimItem>> = buf
+                .drain(..)
+                .map(|item| Arc::new(item) as Arc<dyn skim::SkimItem>)
+                .collect();
+            if !sorted.is_empty() {
+                let _ = tx_coord.send(sorted);
+            }
+        });
+    }
+
     let mut tasks = Vec::new();
 
     for kind in kinds {
@@ -58,15 +97,32 @@ pub async fn watch_resources(
         let k = *kind;
         let ctx = context.to_string();
         let ns = namespace.map(str::to_string);
+        let gi = global_init.clone();
+        let dc = done_count.clone();
+        let aid = all_init_done.clone();
 
         tasks.push(tokio::spawn(async move {
             let result = match k {
                 ResourceKind::Pod => {
-                    watch_typed::<Pod, _>(c, t, ResourceKind::Pod, pod_status, ctx, ns).await
+                    watch_typed::<Pod, _>(
+                        c, t, ResourceKind::Pod, pod_status, ctx, ns, gi, dc, total_watchers, aid,
+                    )
+                    .await
                 }
                 ResourceKind::Service => {
-                    watch_typed::<Service, _>(c, t, ResourceKind::Service, service_status, ctx, ns)
-                        .await
+                    watch_typed::<Service, _>(
+                        c,
+                        t,
+                        ResourceKind::Service,
+                        service_status,
+                        ctx,
+                        ns,
+                        gi,
+                        dc,
+                        total_watchers,
+                        aid,
+                    )
+                    .await
                 }
                 ResourceKind::Deployment => {
                     watch_typed::<Deployment, _>(
@@ -76,6 +132,10 @@ pub async fn watch_resources(
                         deploy_status,
                         ctx,
                         ns,
+                        gi,
+                        dc,
+                        total_watchers,
+                        aid,
                     )
                     .await
                 }
@@ -87,6 +147,10 @@ pub async fn watch_resources(
                         statefulset_status,
                         ctx,
                         ns,
+                        gi,
+                        dc,
+                        total_watchers,
+                        aid,
                     )
                     .await
                 }
@@ -98,6 +162,10 @@ pub async fn watch_resources(
                         daemonset_status,
                         ctx,
                         ns,
+                        gi,
+                        dc,
+                        total_watchers,
+                        aid,
                     )
                     .await
                 }
@@ -109,20 +177,58 @@ pub async fn watch_resources(
                         |_| "ConfigMap".to_string(),
                         ctx,
                         ns,
+                        gi,
+                        dc,
+                        total_watchers,
+                        aid,
                     )
                     .await
                 }
                 ResourceKind::Secret => {
-                    watch_typed::<Secret, _>(c, t, ResourceKind::Secret, secret_status, ctx, ns)
-                        .await
+                    watch_typed::<Secret, _>(
+                        c,
+                        t,
+                        ResourceKind::Secret,
+                        secret_status,
+                        ctx,
+                        ns,
+                        gi,
+                        dc,
+                        total_watchers,
+                        aid,
+                    )
+                    .await
                 }
                 ResourceKind::Ingress => {
-                    watch_typed::<Ingress, _>(c, t, ResourceKind::Ingress, ingress_status, ctx, ns)
-                        .await
+                    watch_typed::<Ingress, _>(
+                        c,
+                        t,
+                        ResourceKind::Ingress,
+                        ingress_status,
+                        ctx,
+                        ns,
+                        gi,
+                        dc,
+                        total_watchers,
+                        aid,
+                    )
+                    .await
                 }
                 // Cluster-scoped resources always use Api::all regardless of --namespace
                 ResourceKind::Node => {
-                    watch_typed::<Node, _>(c, t, ResourceKind::Node, node_status, ctx, None).await
+                    watch_typed::<Node, _>(
+                        c,
+                        t,
+                        ResourceKind::Node,
+                        node_status,
+                        ctx,
+                        None,
+                        gi,
+                        dc,
+                        total_watchers,
+                        aid,
+                    )
+                    .await
                 }
                 ResourceKind::Namespace => {
                     watch_typed::<Namespace, _>(
@@ -132,6 +238,10 @@ pub async fn watch_resources(
                         namespace_status,
                         ctx,
                         None,
+                        gi,
+                        dc,
+                        total_watchers,
+                        aid,
                     )
                     .await
                 }
@@ -143,15 +253,33 @@ pub async fn watch_resources(
                         pvc_status,
                         ctx,
                         ns,
+                        gi,
+                        dc,
+                        total_watchers,
+                        aid,
                     )
                     .await
                 }
                 ResourceKind::Job => {
-                    watch_typed::<Job, _>(c, t, ResourceKind::Job, job_status, ctx, ns).await
+                    watch_typed::<Job, _>(
+                        c, t, ResourceKind::Job, job_status, ctx, ns, gi, dc, total_watchers, aid,
+                    )
+                    .await
                 }
                 ResourceKind::CronJob => {
-                    watch_typed::<CronJob, _>(c, t, ResourceKind::CronJob, cronjob_status, ctx, ns)
-                        .await
+                    watch_typed::<CronJob, _>(
+                        c,
+                        t,
+                        ResourceKind::CronJob,
+                        cronjob_status,
+                        ctx,
+                        ns,
+                        gi,
+                        dc,
+                        total_watchers,
+                        aid,
+                    )
+                    .await
                 }
             };
 
@@ -177,12 +305,14 @@ pub async fn watch_resources(
 /// Lifecycle:
 /// - `Init`      → new watch cycle starting; clear the init buffer.
 /// - `InitApply` → existing object; buffer it.
-/// - `InitDone`  → sort the buffer by health priority and send the whole batch.
+/// - `InitDone`  → on first init: push to global buffer and signal coordinator.
+///                 on reconnects: sort locally and send directly to skim.
 /// - `Apply`     → live add/modify; send immediately.
 /// - `Delete`    → live deletion; send with `[DELETED]` status so it's visible.
 ///
 /// The watcher reconnects automatically on failures via `default_backoff()`.
 /// The loop exits cleanly when skim closes the channel (send returns Err).
+#[allow(clippy::too_many_arguments)]
 async fn watch_typed<T, F>(
     client: Client,
     tx: SkimItemSender,
@@ -190,6 +320,10 @@ async fn watch_typed<T, F>(
     status_fn: F,
     context: String,
     namespace: Option<String>,
+    global_init: Arc<Mutex<Vec<K8sItem>>>,
+    done_count: Arc<AtomicUsize>,
+    total_watchers: usize,
+    all_init_done: Arc<Notify>,
 ) -> Result<()>
 where
     T: Resource<DynamicType = ()> + DeserializeOwned + Clone + Send + Sync + Debug + 'static,
@@ -206,6 +340,9 @@ where
     // Stored as K8sItem (concrete type) so we can sort without downcast.
     let mut init_batch: Vec<K8sItem> = Vec::new();
     let mut in_init = true;
+    // Track whether this watcher has already contributed to the global init batch.
+    // On reconnects we sort locally and send directly rather than touching global state.
+    let mut first_init_done = false;
 
     while let Some(event) = stream.next().await {
         match event {
@@ -231,19 +368,35 @@ where
                 }
             }
 
-            // ── Initial list complete — sort & send ───────────────────────────
+            // ── Initial list complete ─────────────────────────────────────────
             Ok(watcher::Event::InitDone) => {
-                // Sort by priority descending: healthy (2) first, unhealthy (0) last.
-                // Skim renders higher-indexed items at the TOP of the list (lower indices
-                // appear near the prompt at the bottom). Sending unhealthy items LAST
-                // gives them the highest indices so they surface to the top of the display.
-                init_batch.sort_by_key(|item| std::cmp::Reverse(status_priority(item.status())));
-                let sorted: Vec<Arc<dyn skim::SkimItem>> = init_batch
-                    .drain(..)
-                    .map(|item| Arc::new(item) as Arc<dyn skim::SkimItem>)
-                    .collect();
-                if !sorted.is_empty() && tx.send(sorted).is_err() {
-                    break;
+                if !first_init_done {
+                    // First init: push into the shared global buffer. The coordinator
+                    // task in watch_resources will do a single globally-sorted send
+                    // once all watchers (or the 8s timeout) complete.
+                    {
+                        let mut buf = global_init.lock().unwrap();
+                        buf.extend(init_batch.drain(..));
+                    }
+                    let finished = done_count.fetch_add(1, Ordering::SeqCst) + 1;
+                    if finished >= total_watchers {
+                        all_init_done.notify_one();
+                    }
+                    first_init_done = true;
+                } else {
+                    // Reconnect after a watch error: sort this watcher's batch locally
+                    // and send directly — global coordination already happened.
+                    // Skim renders higher-indexed items at the TOP of the list.
+                    // Sending unhealthy items LAST gives them the highest indices.
+                    init_batch
+                        .sort_by_key(|item| std::cmp::Reverse(status_priority(item.status())));
+                    let sorted: Vec<Arc<dyn skim::SkimItem>> = init_batch
+                        .drain(..)
+                        .map(|item| Arc::new(item) as Arc<dyn skim::SkimItem>)
+                        .collect();
+                    if !sorted.is_empty() && tx.send(sorted).is_err() {
+                        break;
+                    }
                 }
                 in_init = false;
             }
