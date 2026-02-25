@@ -45,4 +45,3 @@ kf --all-contexts           # every cluster at once
 kf --context staging        # specific context
 kf --read-only              # disable all write/exec actions
 ```
-
