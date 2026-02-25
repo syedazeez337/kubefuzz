@@ -66,7 +66,9 @@ jobs:
             artifact: kf-aarch64-linux
             use_cross: true
 
-          - os: macos-13
+          # Both macOS targets build on the same arm64 runner.
+          # Apple's SDK + Rust support cross-compiling x86_64 from arm64 natively.
+          - os: macos-latest
             target: x86_64-apple-darwin
             artifact: kf-x86_64-macos
             use_cross: false
