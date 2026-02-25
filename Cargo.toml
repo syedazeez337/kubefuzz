@@ -10,10 +10,10 @@ name = "kf"
 path = "src/main.rs"
 
 [dependencies]
-# Fuzzy finder engine — using the git clone directly because crates.io 3.4.0
-# is broken with frizbee 0.8.2 (simd module became private). The local clone
-# at ../skim already has the fix. default-features = false skips the CLI binary.
-skim = { path = "../skim", default-features = false }
+# Fuzzy finder engine — using a git fork because crates.io 3.4.0 is broken
+# with frizbee 0.8.2 (simd module became private). This fork has the fix.
+# default-features = false skips the skim CLI binary.
+skim = { git = "https://github.com/syedazeez337/skim", branch = "master", default-features = false }
 
 # TUI rendering — must match skim's ratatui version
 ratatui = "0.30"
@@ -22,8 +22,8 @@ ratatui = "0.30"
 kube = { version = "3.0.1", features = ["client", "config", "runtime"] }
 k8s-openapi = { version = "0.27.0", features = ["latest"] }
 
-# Async runtime
-tokio = { version = "1", features = ["full"] }
+# Async runtime — only the features actually used
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time"] }
 
 # Async utilities (streaming pod lists)
 futures = "0.3"
@@ -44,3 +44,8 @@ clap = { version = "4", features = ["derive"] }
 # Config file (Phase 1+)
 toml = "1"
 dirs = "6"
+
+[dev-dependencies]
+assert_cmd = "2"
+predicates = "3"
+tempfile = "3"

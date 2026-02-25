@@ -7,8 +7,8 @@ use k8s_openapi::{
         core::v1::{ConfigMap, Namespace, Node, PersistentVolumeClaim, Pod, Secret, Service},
         networking::v1::Ingress,
     },
-    jiff::{SpanRound, Timestamp, Unit},
     apimachinery::pkg::apis::meta::v1::ObjectMeta,
+    jiff::{SpanRound, Timestamp, Unit},
 };
 use kube::{
     api::Api,
@@ -40,30 +40,32 @@ pub const ALL_KINDS: &[ResourceKind] = &[
 
 /// Watch the given resource kinds from the cluster, streaming live updates into skim.
 /// `context` is a display label attached to every item (empty string in single-cluster mode).
-/// Initial items are sorted (unhealthy first) and sent as a batch at InitDone.
+/// Initial items are sorted (unhealthy first) and sent as a batch at `InitDone`.
 /// Subsequent Apply/Delete events are streamed in real-time.
-/// Automatically reconnects on watch failures via default_backoff.
+/// Automatically reconnects on watch failures via `default_backoff`.
 pub async fn watch_resources(
     client: Client,
     tx: SkimItemSender,
     kinds: &[ResourceKind],
     context: &str,
+    namespace: Option<&str>,
 ) -> Result<()> {
     let mut tasks = Vec::new();
 
     for kind in kinds {
         let c = client.clone();
         let t = tx.clone();
-        let k = kind.clone();
+        let k = *kind;
         let ctx = context.to_string();
+        let ns = namespace.map(str::to_string);
 
         tasks.push(tokio::spawn(async move {
             let result = match k {
                 ResourceKind::Pod => {
-                    watch_typed::<Pod, _>(c, t, ResourceKind::Pod, pod_status, ctx).await
+                    watch_typed::<Pod, _>(c, t, ResourceKind::Pod, pod_status, ctx, ns).await
                 }
                 ResourceKind::Service => {
-                    watch_typed::<Service, _>(c, t, ResourceKind::Service, service_status, ctx)
+                    watch_typed::<Service, _>(c, t, ResourceKind::Service, service_status, ctx, ns)
                         .await
                 }
                 ResourceKind::Deployment => {
@@ -73,6 +75,7 @@ pub async fn watch_resources(
                         ResourceKind::Deployment,
                         deploy_status,
                         ctx,
+                        ns,
                     )
                     .await
                 }
@@ -83,6 +86,7 @@ pub async fn watch_resources(
                         ResourceKind::StatefulSet,
                         statefulset_status,
                         ctx,
+                        ns,
                     )
                     .await
                 }
@@ -93,6 +97,7 @@ pub async fn watch_resources(
                         ResourceKind::DaemonSet,
                         daemonset_status,
                         ctx,
+                        ns,
                     )
                     .await
                 }
@@ -103,18 +108,21 @@ pub async fn watch_resources(
                         ResourceKind::ConfigMap,
                         |_| "ConfigMap".to_string(),
                         ctx,
+                        ns,
                     )
                     .await
                 }
                 ResourceKind::Secret => {
-                    watch_typed::<Secret, _>(c, t, ResourceKind::Secret, secret_status, ctx).await
-                }
-                ResourceKind::Ingress => {
-                    watch_typed::<Ingress, _>(c, t, ResourceKind::Ingress, ingress_status, ctx)
+                    watch_typed::<Secret, _>(c, t, ResourceKind::Secret, secret_status, ctx, ns)
                         .await
                 }
+                ResourceKind::Ingress => {
+                    watch_typed::<Ingress, _>(c, t, ResourceKind::Ingress, ingress_status, ctx, ns)
+                        .await
+                }
+                // Cluster-scoped resources always use Api::all regardless of --namespace
                 ResourceKind::Node => {
-                    watch_typed::<Node, _>(c, t, ResourceKind::Node, node_status, ctx).await
+                    watch_typed::<Node, _>(c, t, ResourceKind::Node, node_status, ctx, None).await
                 }
                 ResourceKind::Namespace => {
                     watch_typed::<Namespace, _>(
@@ -123,6 +131,7 @@ pub async fn watch_resources(
                         ResourceKind::Namespace,
                         namespace_status,
                         ctx,
+                        None,
                     )
                     .await
                 }
@@ -133,14 +142,15 @@ pub async fn watch_resources(
                         ResourceKind::PersistentVolumeClaim,
                         pvc_status,
                         ctx,
+                        ns,
                     )
                     .await
                 }
                 ResourceKind::Job => {
-                    watch_typed::<Job, _>(c, t, ResourceKind::Job, job_status, ctx).await
+                    watch_typed::<Job, _>(c, t, ResourceKind::Job, job_status, ctx, ns).await
                 }
                 ResourceKind::CronJob => {
-                    watch_typed::<CronJob, _>(c, t, ResourceKind::CronJob, cronjob_status, ctx)
+                    watch_typed::<CronJob, _>(c, t, ResourceKind::CronJob, cronjob_status, ctx, ns)
                         .await
                 }
             };
@@ -152,7 +162,9 @@ pub async fn watch_resources(
     }
 
     for task in tasks {
-        let _ = task.await;
+        if let Err(e) = task.await {
+            eprintln!("[kubefuzz] warning: watcher task panicked: {e}");
+        }
     }
 
     Ok(())
@@ -177,13 +189,18 @@ async fn watch_typed<T, F>(
     kind: ResourceKind,
     status_fn: F,
     context: String,
+    namespace: Option<String>,
 ) -> Result<()>
 where
     T: Resource<DynamicType = ()> + DeserializeOwned + Clone + Send + Sync + Debug + 'static,
     F: Fn(&T) -> String,
 {
     let api: Api<T> = Api::all(client);
-    let mut stream = pin!(watcher(api, watcher::Config::default()).default_backoff());
+    let watcher_config = match namespace.as_deref() {
+        Some(ns) => watcher::Config::default().fields(&format!("metadata.namespace={ns}")),
+        None => watcher::Config::default(),
+    };
+    let mut stream = pin!(watcher(api, watcher_config).default_backoff());
 
     // Buffer for initial items so we can sort before the first render.
     // Stored as K8sItem (concrete type) so we can sort without downcast.
@@ -200,12 +217,15 @@ where
 
             // ── Existing object during initial list ───────────────────────────
             Ok(watcher::Event::InitApply(r)) => {
-                let item = make_item(&r, &kind, &status_fn, false, &context);
+                let item = make_item(&r, kind, &status_fn, false, &context);
                 if in_init {
                     init_batch.push(item);
                 } else {
                     // Shouldn't occur, but handle gracefully.
-                    if tx.send(vec![Arc::new(item) as Arc<dyn skim::SkimItem>]).is_err() {
+                    if tx
+                        .send(vec![Arc::new(item) as Arc<dyn skim::SkimItem>])
+                        .is_err()
+                    {
                         break;
                     }
                 }
@@ -217,7 +237,7 @@ where
                 // Skim renders higher-indexed items at the TOP of the list (lower indices
                 // appear near the prompt at the bottom). Sending unhealthy items LAST
                 // gives them the highest indices so they surface to the top of the display.
-                init_batch.sort_by_key(|item| std::cmp::Reverse(status_priority(&item.status)));
+                init_batch.sort_by_key(|item| std::cmp::Reverse(status_priority(item.status())));
                 let sorted: Vec<Arc<dyn skim::SkimItem>> = init_batch
                     .drain(..)
                     .map(|item| Arc::new(item) as Arc<dyn skim::SkimItem>)
@@ -230,16 +250,22 @@ where
 
             // ── Live add / update ─────────────────────────────────────────────
             Ok(watcher::Event::Apply(r)) => {
-                let item = make_item(&r, &kind, &status_fn, false, &context);
-                if tx.send(vec![Arc::new(item) as Arc<dyn skim::SkimItem>]).is_err() {
+                let item = make_item(&r, kind, &status_fn, false, &context);
+                if tx
+                    .send(vec![Arc::new(item) as Arc<dyn skim::SkimItem>])
+                    .is_err()
+                {
                     break;
                 }
             }
 
             // ── Live deletion ─────────────────────────────────────────────────
             Ok(watcher::Event::Delete(r)) => {
-                let item = make_item(&r, &kind, &status_fn, true, &context);
-                if tx.send(vec![Arc::new(item) as Arc<dyn skim::SkimItem>]).is_err() {
+                let item = make_item(&r, kind, &status_fn, true, &context);
+                if tx
+                    .send(vec![Arc::new(item) as Arc<dyn skim::SkimItem>])
+                    .is_err()
+                {
                     break;
                 }
             }
@@ -258,7 +284,7 @@ where
 
 fn make_item<T>(
     r: &T,
-    kind: &ResourceKind,
+    kind: ResourceKind,
     status_fn: &impl Fn(&T) -> String,
     deleted: bool,
     context: &str,
@@ -274,31 +300,13 @@ where
         status_fn(r)
     };
     let age = resource_age(r.meta());
-    let mut item = K8sItem::new(kind.clone(), ns, name, status, age);
-    item.context = context.to_string();
-    item
+    K8sItem::new(kind, ns, name, status, age, context)
 }
 
 // ─── Status priority (lower = shown first) ───────────────────────────────────
 
 pub fn status_priority(status: &str) -> u8 {
-    match status {
-        s if s.starts_with("CrashLoop")
-            || s.starts_with("ErrImage")
-            || s.starts_with("ImagePull")
-            || s == "Error"
-            || s == "Failed"
-            || s == "OOMKilled"
-            || s == "NotReady"
-            || s.starts_with("Failed(") =>
-        {
-            0
-        }
-        "[DELETED]" => 1,
-        "Pending" | "ContainerCreating" | "Terminating" | "Unknown" => 1,
-        s if s.starts_with("Init:") => 1,
-        _ => 2,
-    }
+    crate::items::StatusHealth::classify(status).priority()
 }
 
 // ─── Per-resource status extractors ──────────────────────────────────────────
@@ -307,9 +315,8 @@ fn pod_status(pod: &Pod) -> String {
     if pod.metadata.deletion_timestamp.is_some() {
         return "Terminating".to_string();
     }
-    let status = match &pod.status {
-        Some(s) => s,
-        None => return "Unknown".to_string(),
+    let Some(status) = &pod.status else {
+        return "Unknown".to_string();
     };
     // Container-level waiting reasons (CrashLoopBackOff, etc.)
     if let Some(css) = &status.container_statuses {
@@ -355,15 +362,17 @@ fn pod_status(pod: &Pod) -> String {
                 cs.state
                     .as_ref()
                     .and_then(|s| s.terminated.as_ref())
-                    .map(|t| t.exit_code == 0)
-                    .unwrap_or(false)
+                    .is_some_and(|t| t.exit_code == 0)
             })
             .count();
         if done < total {
             return format!("Init:{done}/{total}");
         }
     }
-    status.phase.clone().unwrap_or_else(|| "Unknown".to_string())
+    status
+        .phase
+        .clone()
+        .unwrap_or_else(|| "Unknown".to_string())
 }
 
 fn service_status(svc: &Service) -> String {
@@ -375,7 +384,11 @@ fn service_status(svc: &Service) -> String {
 }
 
 fn deploy_status(d: &Deployment) -> String {
-    let ready = d.status.as_ref().and_then(|s| s.ready_replicas).unwrap_or(0);
+    let ready = d
+        .status
+        .as_ref()
+        .and_then(|s| s.ready_replicas)
+        .unwrap_or(0);
     let desired = d.spec.as_ref().and_then(|s| s.replicas).unwrap_or(1);
     format!("{ready}/{desired}")
 }
@@ -386,17 +399,13 @@ fn statefulset_status(sts: &StatefulSet) -> String {
         .as_ref()
         .and_then(|s| s.ready_replicas)
         .unwrap_or(0);
-    let total = sts.status.as_ref().map(|s| s.replicas).unwrap_or(0);
+    let total = sts.status.as_ref().map_or(0, |s| s.replicas);
     format!("{ready}/{total}")
 }
 
 fn daemonset_status(ds: &DaemonSet) -> String {
-    let ready = ds.status.as_ref().map(|s| s.number_ready).unwrap_or(0);
-    let desired = ds
-        .status
-        .as_ref()
-        .map(|s| s.desired_number_scheduled)
-        .unwrap_or(0);
+    let ready = ds.status.as_ref().map_or(0, |s| s.number_ready);
+    let desired = ds.status.as_ref().map_or(0, |s| s.desired_number_scheduled);
     format!("{ready}/{desired}")
 }
 
@@ -420,14 +429,16 @@ fn node_status(node: &Node) -> String {
         .as_ref()
         .and_then(|s| s.conditions.as_ref())
         .and_then(|conds| conds.iter().find(|c| c.type_ == "Ready"))
-        .map(|c| {
-            if c.status == "True" {
-                "Ready".to_string()
-            } else {
-                "NotReady".to_string()
-            }
-        })
-        .unwrap_or_else(|| "Unknown".to_string())
+        .map_or_else(
+            || "Unknown".to_string(),
+            |c| {
+                if c.status == "True" {
+                    "Ready".to_string()
+                } else {
+                    "NotReady".to_string()
+                }
+            },
+        )
 }
 
 fn namespace_status(ns: &Namespace) -> String {
@@ -468,8 +479,7 @@ fn cronjob_status(cj: &CronJob) -> String {
         .status
         .as_ref()
         .and_then(|s| s.active.as_ref())
-        .map(|a| a.len())
-        .unwrap_or(0);
+        .map_or(0, Vec::len);
     if active > 0 {
         format!("Active({active})")
     } else {
@@ -495,11 +505,197 @@ pub fn resource_age(meta: &ObjectMeta) -> String {
                     )
                     .ok()
                 })
-                .map(|dur| match (dur.get_days(), dur.get_hours(), dur.get_minutes()) {
-                    (d, _, _) if d > 0 => format!("{d}d"),
-                    (_, h, _) if h > 0 => format!("{h}h"),
-                    (_, _, m) => format!("{m}m"),
-                })
+                .map(
+                    |dur| match (dur.get_days(), dur.get_hours(), dur.get_minutes()) {
+                        (d, _, _) if d > 0 => format!("{d}d"),
+                        (_, h, _) if h > 0 => format!("{h}h"),
+                        (_, _, m) => format!("{m}m"),
+                    },
+                )
         })
         .unwrap_or_else(|| "?".to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use k8s_openapi::api::core::v1::{
+        ContainerState, ContainerStateTerminated, ContainerStateWaiting, ContainerStatus, PodStatus,
+    };
+
+    // ── status_priority ───────────────────────────────────────────────────────
+
+    #[test]
+    fn priority_critical_statuses() {
+        for s in &[
+            "CrashLoopBackOff",
+            "ImagePullBackOff",
+            "ErrImagePull",
+            "Error",
+            "Failed",
+            "OOMKilled",
+            "NotReady",
+            "Failed(3)",
+            "Evicted",
+            "BackOff",
+        ] {
+            assert_eq!(
+                status_priority(s),
+                0,
+                "'{s}' should be priority 0 (critical)"
+            );
+        }
+    }
+
+    #[test]
+    fn priority_warning_statuses() {
+        for s in &[
+            "[DELETED]",
+            "Pending",
+            "ContainerCreating",
+            "Terminating",
+            "Init:0/1",
+        ] {
+            assert_eq!(
+                status_priority(s),
+                1,
+                "'{s}' should be priority 1 (warning)"
+            );
+        }
+    }
+
+    #[test]
+    fn priority_healthy_statuses() {
+        for s in &["Running", "Active", "ClusterIP", "Complete", "Succeeded"] {
+            assert_eq!(
+                status_priority(s),
+                2,
+                "'{s}' should be priority 2 (healthy)"
+            );
+        }
+    }
+
+    // ── resource_age ─────────────────────────────────────────────────────────
+
+    #[test]
+    fn resource_age_no_timestamp_returns_question_mark() {
+        use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
+        assert_eq!(resource_age(&ObjectMeta::default()), "?");
+    }
+
+    // ── pod_status ────────────────────────────────────────────────────────────
+
+    #[test]
+    fn pod_status_no_status_is_unknown() {
+        assert_eq!(pod_status(&Pod::default()), "Unknown");
+    }
+
+    #[test]
+    fn pod_status_phase_running() {
+        let pod = Pod {
+            status: Some(PodStatus {
+                phase: Some("Running".to_string()),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        assert_eq!(pod_status(&pod), "Running");
+    }
+
+    #[test]
+    fn pod_status_crashloop() {
+        let pod = Pod {
+            status: Some(PodStatus {
+                container_statuses: Some(vec![ContainerStatus {
+                    state: Some(ContainerState {
+                        waiting: Some(ContainerStateWaiting {
+                            reason: Some("CrashLoopBackOff".to_string()),
+                            ..Default::default()
+                        }),
+                        ..Default::default()
+                    }),
+                    ..Default::default()
+                }]),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        assert_eq!(pod_status(&pod), "CrashLoopBackOff");
+    }
+
+    #[test]
+    fn pod_status_oomkilled() {
+        let pod = Pod {
+            status: Some(PodStatus {
+                container_statuses: Some(vec![ContainerStatus {
+                    state: Some(ContainerState {
+                        terminated: Some(ContainerStateTerminated {
+                            exit_code: 137,
+                            reason: Some("OOMKilled".to_string()),
+                            ..Default::default()
+                        }),
+                        ..Default::default()
+                    }),
+                    ..Default::default()
+                }]),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        assert_eq!(pod_status(&pod), "OOMKilled");
+    }
+
+    #[test]
+    fn pod_status_init_progress() {
+        let pod = Pod {
+            status: Some(PodStatus {
+                init_container_statuses: Some(vec![ContainerStatus {
+                    // running but not terminated — counts as 0 done out of 1
+                    state: Some(ContainerState {
+                        ..Default::default()
+                    }),
+                    ..Default::default()
+                }]),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        assert_eq!(pod_status(&pod), "Init:0/1");
+    }
+
+    // ── deploy_status ─────────────────────────────────────────────────────────
+
+    #[test]
+    fn deploy_status_fully_ready() {
+        use k8s_openapi::api::apps::v1::{Deployment, DeploymentSpec, DeploymentStatus};
+        let d = Deployment {
+            spec: Some(DeploymentSpec {
+                replicas: Some(3),
+                ..Default::default()
+            }),
+            status: Some(DeploymentStatus {
+                ready_replicas: Some(3),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        assert_eq!(deploy_status(&d), "3/3");
+    }
+
+    #[test]
+    fn deploy_status_degraded() {
+        use k8s_openapi::api::apps::v1::{Deployment, DeploymentSpec, DeploymentStatus};
+        let d = Deployment {
+            spec: Some(DeploymentSpec {
+                replicas: Some(3),
+                ..Default::default()
+            }),
+            status: Some(DeploymentStatus {
+                ready_replicas: Some(1),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        assert_eq!(deploy_status(&d), "1/3");
+    }
 }
