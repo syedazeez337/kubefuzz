@@ -1,0 +1,160 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.*'
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # ─── Step 1: generate completions + man page from a native build ─────────────
+  assets:
+    name: Generate shell completions and man page
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ubuntu-assets-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build (native)
+        run: cargo build --release
+
+      - name: Generate shell completions
+        run: |
+          BIN=./target/release/kf
+          mkdir -p out/completions
+          $BIN --completions bash > out/completions/kf.bash
+          $BIN --completions zsh  > out/completions/_kf
+          $BIN --completions fish > out/completions/kf.fish
+
+      - name: Generate man page
+        run: |
+          mkdir -p out/man
+          ./target/release/kf --mangen > out/man/kf.1
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: assets
+          path: out/
+
+  # ─── Step 2: cross-platform binary builds ────────────────────────────────────
+  build:
+    name: Build ${{ matrix.artifact }}
+    needs: assets
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+            artifact: kf-x86_64-linux
+            use_cross: false
+
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-musl
+            artifact: kf-aarch64-linux
+            use_cross: true
+
+          - os: macos-13
+            target: x86_64-apple-darwin
+            artifact: kf-x86_64-macos
+            use_cross: false
+
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            artifact: kf-aarch64-macos
+            use_cross: false
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install musl tools (x86_64-linux)
+        if: matrix.target == 'x86_64-unknown-linux-musl'
+        run: sudo apt-get install -y musl-tools
+
+      - name: Install cross (aarch64-linux)
+        if: matrix.use_cross
+        run: cargo install cross --locked
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build with cross
+        if: matrix.use_cross
+        run: cross build --release --target ${{ matrix.target }}
+
+      - name: Build natively
+        if: "!matrix.use_cross"
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Download completions and man page
+        uses: actions/download-artifact@v4
+        with:
+          name: assets
+          path: assets/
+
+      - name: Package tarball
+        shell: bash
+        run: |
+          STAGE=$(mktemp -d)
+          cp target/${{ matrix.target }}/release/kf "$STAGE/kf"
+          cp -r assets/completions "$STAGE/completions"
+          cp -r assets/man          "$STAGE/man"
+          cp README.md              "$STAGE/README.md"
+          ARCHIVE="${{ matrix.artifact }}.tar.gz"
+          tar czf "$ARCHIVE" -C "$STAGE" .
+          echo "ARCHIVE=$ARCHIVE" >> "$GITHUB_ENV"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.artifact }}.tar.gz
+
+  # ─── Step 3: publish GitHub Release ─────────────────────────────────────────
+  release:
+    name: Publish GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          pattern: kf-*
+
+      - name: Collect archives and compute checksums
+        run: |
+          find artifacts -name '*.tar.gz' -exec cp {} . \;
+          sha256sum *.tar.gz > SHA256SUMS
+          echo "=== release assets ==="
+          ls -lh *.tar.gz SHA256SUMS
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            *.tar.gz
+            SHA256SUMS
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
