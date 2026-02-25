@@ -324,13 +324,14 @@ impl SkimItem for K8sItem {
         let mode = crate::actions::current_preview_mode();
 
         // Build the kubectl argument list for the current preview mode.
-        // Logs mode uses a different argument structure (no kind prefix).
+        // Namespace (-n) and --context must come BEFORE the `--` end-of-flags
+        // separator; anything after `--` is treated as a resource name by kubectl.
         let mut args: Vec<&str> = if mode == 2 && matches!(self.kind, ResourceKind::Pod) {
-            vec!["logs", "--tail=100", "--", &self.name]
+            vec!["logs", "--tail=100"]
         } else {
             match mode {
-                1 => vec!["get", self.kind.as_str(), "--", &self.name, "-o", "yaml"],
-                _ => vec!["describe", self.kind.as_str(), "--", &self.name],
+                1 => vec!["get", self.kind.as_str(), "-o", "yaml"],
+                _ => vec!["describe", self.kind.as_str()],
             }
         };
 
@@ -344,6 +345,9 @@ impl SkimItem for K8sItem {
             args.push("--context");
             args.push(&self.context);
         }
+
+        args.push("--");
+        args.push(&self.name);
 
         match std::process::Command::new("kubectl").args(&args).output() {
             Ok(out) => {
