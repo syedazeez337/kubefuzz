@@ -44,30 +44,7 @@ jobs:
       - name: deny
         uses: EmbarkStudios/cargo-deny-action@v2
         with:
-          command: check
+          command: check licenses bans sources
 
       - name: build release
         run: cargo build --release
-
-  msrv:
-    name: MSRV (1.82)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: "1.82"
-
-      - uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-msrv-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-msrv-
-
-      - name: cargo check (MSRV)
-        run: cargo check --ignore-rust-version

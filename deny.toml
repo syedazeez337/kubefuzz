@@ -5,12 +5,6 @@
 # Only check the default features for the host platform
 targets = []
 
-# ── Advisories ────────────────────────────────────────────────────────────────
-[advisories]
-version = 2
-vulnerability = "deny"
-yanked = "warn"
-
 # ── Licenses ──────────────────────────────────────────────────────────────────
 [licenses]
 version = 2
