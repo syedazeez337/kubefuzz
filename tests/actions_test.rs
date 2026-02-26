@@ -223,7 +223,7 @@ fn action_delete_cluster_scoped_item_cancelled_on_empty_stdin() {
 fn action_delete_bulk_more_than_ten_cancelled_on_empty_stdin() {
     // >10 items triggers the "type 'yes'" guard — empty stdin → cancelled
     let items: Vec<K8sItem> = (0..11)
-        .map(|i| K8sItem::new(ResourceKind::Pod, "ns", &format!("pod-{i}"), "Running", "1d", ""))
+        .map(|i| K8sItem::new(ResourceKind::Pod, "ns", format!("pod-{i}"), "Running", "1d", ""))
         .collect();
     let refs: Vec<&K8sItem> = items.iter().collect();
     let result = action_delete(&refs);
