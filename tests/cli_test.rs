@@ -12,6 +12,7 @@ fn args_with(resource: &str) -> Args {
         context: None,
         namespace: None,
         read_only: false,
+        label: None,
         kubeconfig: None,
         completions: None,
         mangen: false,
@@ -25,6 +26,7 @@ fn no_resource_args() -> Args {
         context: None,
         namespace: None,
         read_only: false,
+        label: None,
         kubeconfig: None,
         completions: None,
         mangen: false,
@@ -186,6 +188,22 @@ fn filter_namespace_aliases() {
             kinds,
             vec![ResourceKind::Namespace],
             "alias '{alias}' → Namespace"
+        );
+    }
+}
+
+// ── PV aliases ────────────────────────────────────────────────────────────────
+
+#[test]
+fn filter_pv_aliases() {
+    for alias in &["pv", "persistentvolume", "persistentvolumes"] {
+        let kinds = args_with(alias)
+            .resource_filter()
+            .unwrap_or_else(|| panic!("alias '{alias}' should resolve"));
+        assert_eq!(
+            kinds,
+            vec![ResourceKind::PersistentVolume],
+            "alias: {alias}"
         );
     }
 }

@@ -4,7 +4,10 @@ use k8s_openapi::{
     api::{
         apps::v1::{DaemonSet, Deployment, StatefulSet},
         batch::v1::{CronJob, Job},
-        core::v1::{ConfigMap, Namespace, Node, PersistentVolumeClaim, Pod, Secret, Service},
+        core::v1::{
+            ConfigMap, Namespace, Node, PersistentVolume, PersistentVolumeClaim, Pod, Secret,
+            Service,
+        },
         networking::v1::Ingress,
     },
     apimachinery::pkg::apis::meta::v1::ObjectMeta,
@@ -42,6 +45,7 @@ pub const ALL_KINDS: &[ResourceKind] = &[
     ResourceKind::CronJob,
     ResourceKind::ConfigMap,
     ResourceKind::Secret,
+    ResourceKind::PersistentVolume,
     ResourceKind::PersistentVolumeClaim,
     ResourceKind::Namespace,
     ResourceKind::Node,
@@ -60,6 +64,7 @@ pub async fn watch_resources(
     kinds: &[ResourceKind],
     context: &str,
     namespace: Option<&str>,
+    label_selector: Option<&str>,
 ) -> Result<()> {
     let total_watchers = kinds.len();
     let global_init: Arc<Mutex<Vec<K8sItem>>> = Arc::new(Mutex::new(Vec::new()));
@@ -97,6 +102,7 @@ pub async fn watch_resources(
         let k = *kind;
         let ctx = context.to_string();
         let ns = namespace.map(str::to_string);
+        let ls = label_selector.map(str::to_string);
         let gi = global_init.clone();
         let dc = done_count.clone();
         let aid = all_init_done.clone();
@@ -111,6 +117,7 @@ pub async fn watch_resources(
                         pod_status,
                         ctx,
                         ns,
+                        ls.clone(),
                         gi,
                         dc,
                         total_watchers,
@@ -126,6 +133,7 @@ pub async fn watch_resources(
                         service_status,
                         ctx,
                         ns,
+                        ls.clone(),
                         gi,
                         dc,
                         total_watchers,
@@ -141,6 +149,7 @@ pub async fn watch_resources(
                         deploy_status,
                         ctx,
                         ns,
+                        ls.clone(),
                         gi,
                         dc,
                         total_watchers,
@@ -156,6 +165,7 @@ pub async fn watch_resources(
                         statefulset_status,
                         ctx,
                         ns,
+                        ls.clone(),
                         gi,
                         dc,
                         total_watchers,
@@ -171,6 +181,7 @@ pub async fn watch_resources(
                         daemonset_status,
                         ctx,
                         ns,
+                        ls.clone(),
                         gi,
                         dc,
                         total_watchers,
@@ -186,6 +197,7 @@ pub async fn watch_resources(
                         |_| "ConfigMap".to_string(),
                         ctx,
                         ns,
+                        ls.clone(),
                         gi,
                         dc,
                         total_watchers,
@@ -201,6 +213,7 @@ pub async fn watch_resources(
                         secret_status,
                         ctx,
                         ns,
+                        ls.clone(),
                         gi,
                         dc,
                         total_watchers,
@@ -216,6 +229,7 @@ pub async fn watch_resources(
                         ingress_status,
                         ctx,
                         ns,
+                        ls.clone(),
                         gi,
                         dc,
                         total_watchers,
@@ -232,6 +246,7 @@ pub async fn watch_resources(
                         node_status,
                         ctx,
                         None,
+                        ls.clone(),
                         gi,
                         dc,
                         total_watchers,
@@ -247,6 +262,24 @@ pub async fn watch_resources(
                         namespace_status,
                         ctx,
                         None,
+                        ls.clone(),
+                        gi,
+                        dc,
+                        total_watchers,
+                        aid,
+                    )
+                    .await
+                }
+                // Cluster-scoped — namespace ignored
+                ResourceKind::PersistentVolume => {
+                    watch_typed::<PersistentVolume, _>(
+                        c,
+                        t,
+                        ResourceKind::PersistentVolume,
+                        pv_status,
+                        ctx,
+                        None,
+                        ls.clone(),
                         gi,
                         dc,
                         total_watchers,
@@ -262,6 +295,7 @@ pub async fn watch_resources(
                         pvc_status,
                         ctx,
                         ns,
+                        ls.clone(),
                         gi,
                         dc,
                         total_watchers,
@@ -277,6 +311,7 @@ pub async fn watch_resources(
                         job_status,
                         ctx,
                         ns,
+                        ls.clone(),
                         gi,
                         dc,
                         total_watchers,
@@ -292,6 +327,7 @@ pub async fn watch_resources(
                         cronjob_status,
                         ctx,
                         ns,
+                        ls.clone(),
                         gi,
                         dc,
                         total_watchers,
@@ -338,6 +374,7 @@ async fn watch_typed<T, F>(
     status_fn: F,
     context: String,
     namespace: Option<String>,
+    label_selector: Option<String>,
     global_init: Arc<Mutex<Vec<K8sItem>>>,
     done_count: Arc<AtomicUsize>,
     total_watchers: usize,
@@ -348,10 +385,13 @@ where
     F: Fn(&T) -> String,
 {
     let api: Api<T> = Api::all(client);
-    let watcher_config = match namespace.as_deref() {
+    let mut watcher_config = match namespace.as_deref() {
         Some(ns) => watcher::Config::default().fields(&format!("metadata.namespace={ns}")),
         None => watcher::Config::default(),
     };
+    if let Some(sel) = label_selector.as_deref() {
+        watcher_config = watcher_config.labels(sel);
+    }
     let mut stream = pin!(watcher(api, watcher_config).default_backoff());
 
     // Buffer for initial items so we can sort before the first render.
@@ -617,6 +657,14 @@ pub fn namespace_status(ns: &Namespace) -> String {
         .as_ref()
         .and_then(|s| s.phase.as_deref())
         .unwrap_or("Active")
+        .to_string()
+}
+
+pub fn pv_status(pv: &PersistentVolume) -> String {
+    pv.status
+        .as_ref()
+        .and_then(|s| s.phase.as_deref())
+        .unwrap_or("Unknown")
         .to_string()
 }
 

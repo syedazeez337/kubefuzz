@@ -115,6 +115,7 @@ pub enum ResourceKind {
     Ingress,
     Node,
     Namespace,
+    PersistentVolume,
     PersistentVolumeClaim,
     Job,
     CronJob,
@@ -133,6 +134,7 @@ impl ResourceKind {
             Self::Ingress => "ing",
             Self::Node => "node",
             Self::Namespace => "ns",
+            Self::PersistentVolume => "pv",
             Self::PersistentVolumeClaim => "pvc",
             Self::Job => "job",
             Self::CronJob => "cronjob",
@@ -147,6 +149,7 @@ impl ResourceKind {
             Self::ConfigMap | Self::Secret => Color::Magenta,
             Self::Ingress => Color::Cyan,
             Self::Node | Self::Namespace => Color::White,
+            Self::PersistentVolume => Color::LightCyan,
             Self::PersistentVolumeClaim => Color::LightMagenta,
             Self::Job | Self::CronJob => Color::LightBlue,
         }

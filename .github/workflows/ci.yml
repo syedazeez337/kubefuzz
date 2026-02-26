@@ -41,5 +41,31 @@ jobs:
           cargo install cargo-audit --quiet
           cargo audit
 
+      - name: deny
+        uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check
+
       - name: build release
         run: cargo build --release
+
+  msrv:
+    name: MSRV (1.88)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@1.88
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-msrv-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-msrv-
+
+      - name: cargo check (MSRV)
+        run: cargo check --all-targets

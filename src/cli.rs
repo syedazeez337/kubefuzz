@@ -11,7 +11,7 @@ use crate::items::ResourceKind;
 )]
 pub struct Args {
     /// Resource type to filter (pods/po, svc, deploy, sts, ds, cm, secret,
-    /// ing, node, ns, pvc, job, cronjob). Omit to show ALL resource types.
+    /// ing, node, ns, pv, pvc, job, cronjob). Omit to show ALL resource types.
     pub resource: Option<String>,
 
     /// Watch resources from all kubeconfig contexts simultaneously.
@@ -33,6 +33,12 @@ pub struct Args {
     /// Describe, logs, and YAML remain available.
     #[arg(long)]
     pub read_only: bool,
+
+    /// Filter resources by a Kubernetes label selector.
+    /// Accepts any expression valid for kubectl --selector
+    /// (e.g. `app=backend`, `env in (prod,staging)`, `!canary`).
+    #[arg(short = 'l', long, value_name = "SELECTOR")]
+    pub label: Option<String>,
 
     /// Path to kubeconfig file. Defaults to $KUBECONFIG or ~/.kube/config.
     #[arg(long, value_name = "PATH")]
@@ -65,6 +71,9 @@ impl Args {
             "ing" | "ingress" | "ingresses" => vec![ResourceKind::Ingress],
             "node" | "nodes" | "no" => vec![ResourceKind::Node],
             "ns" | "namespace" | "namespaces" => vec![ResourceKind::Namespace],
+            "pv" | "persistentvolume" | "persistentvolumes" => {
+                vec![ResourceKind::PersistentVolume]
+            }
             "pvc" | "persistentvolumeclaim" | "persistentvolumeclaims" => {
                 vec![ResourceKind::PersistentVolumeClaim]
             }
@@ -73,7 +82,7 @@ impl Args {
             _ => {
                 eprintln!(
                     "[kubefuzz] Unknown resource type '{s}'. Showing all resources.\n\
-                     Supported: pods, svc, deploy, sts, ds, cm, secret, ing, node, ns, pvc, job, cronjob"
+                     Supported: pods, svc, deploy, sts, ds, cm, secret, ing, node, ns, pv, pvc, job, cronjob"
                 );
                 return None;
             }

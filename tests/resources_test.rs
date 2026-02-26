@@ -10,8 +10,8 @@ use k8s_openapi::{
         core::v1::{
             ContainerState, ContainerStateTerminated, ContainerStateWaiting, ContainerStatus,
             Namespace, NamespaceStatus, Node, NodeCondition, NodeStatus, ObjectReference,
-            PersistentVolumeClaim, PersistentVolumeClaimStatus, Pod, PodStatus, Secret, Service,
-            ServiceSpec,
+            PersistentVolume, PersistentVolumeClaim, PersistentVolumeClaimStatus,
+            PersistentVolumeStatus, Pod, PodStatus, Secret, Service, ServiceSpec,
         },
         networking::v1::{
             Ingress, IngressLoadBalancerIngress, IngressLoadBalancerStatus, IngressStatus,
@@ -22,7 +22,7 @@ use k8s_openapi::{
 use kubefuzz::items::ResourceKind;
 use kubefuzz::k8s::resources::{
     cronjob_status, daemonset_status, deploy_status, ingress_status, job_status, namespace_status,
-    node_status, pod_status, pvc_status, resource_age, secret_status, service_status,
+    node_status, pod_status, pv_status, pvc_status, resource_age, secret_status, service_status,
     statefulset_status, status_priority, ALL_KINDS,
 };
 
@@ -30,7 +30,7 @@ use kubefuzz::k8s::resources::{
 
 #[test]
 fn all_kinds_has_thirteen_entries() {
-    assert_eq!(ALL_KINDS.len(), 13);
+    assert_eq!(ALL_KINDS.len(), 14);
 }
 
 #[test]
@@ -45,6 +45,7 @@ fn all_kinds_contains_every_resource_variant() {
     assert!(ALL_KINDS.contains(&ResourceKind::CronJob));
     assert!(ALL_KINDS.contains(&ResourceKind::ConfigMap));
     assert!(ALL_KINDS.contains(&ResourceKind::Secret));
+    assert!(ALL_KINDS.contains(&ResourceKind::PersistentVolume));
     assert!(ALL_KINDS.contains(&ResourceKind::PersistentVolumeClaim));
     assert!(ALL_KINDS.contains(&ResourceKind::Namespace));
     assert!(ALL_KINDS.contains(&ResourceKind::Node));
@@ -727,6 +728,61 @@ fn namespace_status_active_explicit() {
         ..Default::default()
     };
     assert_eq!(namespace_status(&ns), "Active");
+}
+
+// ── pv_status ─────────────────────────────────────────────────────────────────
+
+#[test]
+fn pv_status_defaults_to_unknown() {
+    assert_eq!(pv_status(&PersistentVolume::default()), "Unknown");
+}
+
+#[test]
+fn pv_status_available() {
+    let pv = PersistentVolume {
+        status: Some(PersistentVolumeStatus {
+            phase: Some("Available".to_string()),
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+    assert_eq!(pv_status(&pv), "Available");
+}
+
+#[test]
+fn pv_status_bound() {
+    let pv = PersistentVolume {
+        status: Some(PersistentVolumeStatus {
+            phase: Some("Bound".to_string()),
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+    assert_eq!(pv_status(&pv), "Bound");
+}
+
+#[test]
+fn pv_status_released() {
+    let pv = PersistentVolume {
+        status: Some(PersistentVolumeStatus {
+            phase: Some("Released".to_string()),
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+    assert_eq!(pv_status(&pv), "Released");
+}
+
+#[test]
+fn pv_status_failed() {
+    let pv = PersistentVolume {
+        status: Some(PersistentVolumeStatus {
+            phase: Some("Failed".to_string()),
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+    assert_eq!(pv_status(&pv), "Failed");
 }
 
 // ── pvc_status ────────────────────────────────────────────────────────────────

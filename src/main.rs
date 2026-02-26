@@ -46,6 +46,21 @@ async fn main() -> Result<()> {
         return Ok(());
     }
 
+    // Warn early if kubectl is missing — preview and all actions will fail without it.
+    if std::process::Command::new("kubectl")
+        .args(["version", "--client"])
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .is_err()
+    {
+        eprintln!(
+            "[kubefuzz] warning: kubectl not found in PATH.\n\
+             Preview and all actions (logs, exec, delete, …) will be unavailable.\n\
+             Install kubectl: https://kubernetes.io/docs/tasks/tools/"
+        );
+    }
+
     // Write the preview-toggle shell script and reset mode to 0 (describe)
     install_preview_toggle();
 
@@ -79,6 +94,7 @@ fn run_single_context(
         .unwrap_or_else(current_context);
     let kubeconfig = args.kubeconfig.as_deref();
     let namespace = args.namespace.as_deref();
+    let label_selector = args.label.as_deref();
 
     loop {
         let (tx, rx): (SkimItemSender, SkimItemReceiver) = unbounded();
@@ -88,6 +104,7 @@ fn run_single_context(
         let kinds_clone = kinds.to_vec();
         let kubeconfig_owned = kubeconfig.map(str::to_string);
         let namespace_owned = namespace.map(str::to_string);
+        let label_owned = label_selector.map(str::to_string);
         tokio::spawn(async move {
             match build_client_for_context(&ctx_for_watcher, kubeconfig_owned.as_deref()).await {
                 Ok(client) => {
@@ -97,6 +114,7 @@ fn run_single_context(
                         &kinds_clone,
                         "",
                         namespace_owned.as_deref(),
+                        label_owned.as_deref(),
                     )
                     .await
                     {
@@ -151,6 +169,7 @@ fn run_all_contexts(args: &Args, kinds: &[ResourceKind], kind_label: &str) -> Re
     let (tx, rx): (SkimItemSender, SkimItemReceiver) = unbounded();
     let kubeconfig = args.kubeconfig.as_deref();
     let namespace = args.namespace.as_deref();
+    let label_selector = args.label.as_deref();
 
     for ctx_name in &contexts {
         let tx_clone = tx.clone();
@@ -158,6 +177,7 @@ fn run_all_contexts(args: &Args, kinds: &[ResourceKind], kind_label: &str) -> Re
         let kinds_clone = kinds.to_vec();
         let kubeconfig_owned = kubeconfig.map(str::to_string);
         let namespace_owned = namespace.map(str::to_string);
+        let label_owned = label_selector.map(str::to_string);
 
         tokio::spawn(async move {
             match build_client_for_context(&ctx_clone, kubeconfig_owned.as_deref()).await {
@@ -168,6 +188,7 @@ fn run_all_contexts(args: &Args, kinds: &[ResourceKind], kind_label: &str) -> Re
                         &kinds_clone,
                         &ctx_clone,
                         namespace_owned.as_deref(),
+                        label_owned.as_deref(),
                     )
                     .await
                     {
