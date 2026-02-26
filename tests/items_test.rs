@@ -42,7 +42,10 @@ fn kind_color_all_variants() {
     assert_eq!(ResourceKind::Ingress.color(), Color::Cyan);
     assert_eq!(ResourceKind::Node.color(), Color::White);
     assert_eq!(ResourceKind::Namespace.color(), Color::White);
-    assert_eq!(ResourceKind::PersistentVolumeClaim.color(), Color::LightMagenta);
+    assert_eq!(
+        ResourceKind::PersistentVolumeClaim.color(),
+        Color::LightMagenta
+    );
     assert_eq!(ResourceKind::Job.color(), Color::LightBlue);
     assert_eq!(ResourceKind::CronJob.color(), Color::LightBlue);
 }
@@ -67,7 +70,11 @@ fn kind_display_matches_as_str_for_all_variants() {
         ResourceKind::CronJob,
     ];
     for kind in &kinds {
-        assert_eq!(format!("{kind}"), kind.as_str(), "Display != as_str for {kind:?}");
+        assert_eq!(
+            format!("{kind}"),
+            kind.as_str(),
+            "Display != as_str for {kind:?}"
+        );
     }
 }
 
@@ -75,7 +82,15 @@ fn kind_display_matches_as_str_for_all_variants() {
 
 #[test]
 fn classify_critical_exact_matches() {
-    let cases = ["Failed", "Error", "OOMKilled", "NotReady", "Lost", "Evicted", "BackOff"];
+    let cases = [
+        "Failed",
+        "Error",
+        "OOMKilled",
+        "NotReady",
+        "Lost",
+        "Evicted",
+        "BackOff",
+    ];
     for s in &cases {
         assert_eq!(
             StatusHealth::classify(s),
@@ -144,8 +159,16 @@ fn classify_deleted_is_unknown() {
 #[test]
 fn classify_healthy_exact_matches() {
     let cases = [
-        "Running", "Active", "Bound", "Complete", "Succeeded",
-        "Ready", "Scheduled", "ClusterIP", "NodePort", "LoadBalancer",
+        "Running",
+        "Active",
+        "Bound",
+        "Complete",
+        "Succeeded",
+        "Ready",
+        "Scheduled",
+        "ClusterIP",
+        "NodePort",
+        "LoadBalancer",
     ];
     for s in &cases {
         assert_eq!(
@@ -184,7 +207,10 @@ fn classify_active_prefix_is_healthy() {
 
 #[test]
 fn classify_unknown_status_defaults_to_healthy() {
-    assert_eq!(StatusHealth::classify("SomeRandomStatus"), StatusHealth::Healthy);
+    assert_eq!(
+        StatusHealth::classify("SomeRandomStatus"),
+        StatusHealth::Healthy
+    );
     assert_eq!(StatusHealth::classify(""), StatusHealth::Healthy);
 }
 
@@ -222,7 +248,12 @@ fn terminating_is_warning_not_critical() {
 #[test]
 fn k8s_item_getters_round_trip() {
     let item = K8sItem::new(
-        ResourceKind::Service, "kube-system", "kube-dns", "ClusterIP", "30d", "prod",
+        ResourceKind::Service,
+        "kube-system",
+        "kube-dns",
+        "ClusterIP",
+        "30d",
+        "prod",
     );
     assert_eq!(item.kind(), ResourceKind::Service);
     assert_eq!(item.namespace(), "kube-system");
@@ -282,7 +313,14 @@ fn output_str_multi_cluster_with_namespace() {
 
 #[test]
 fn output_str_multi_cluster_no_namespace() {
-    let item = K8sItem::new(ResourceKind::Namespace, "", "default", "Active", "30d", "prod");
+    let item = K8sItem::new(
+        ResourceKind::Namespace,
+        "",
+        "default",
+        "Active",
+        "30d",
+        "prod",
+    );
     assert_eq!(item.output_str(), "prod:ns/default");
 }
 
@@ -341,7 +379,13 @@ fn context_color_empty_string_does_not_panic() {
 
 #[test]
 fn context_color_various_names_do_not_panic() {
-    for ctx in &["prod", "staging", "dev", "k8s-cluster-1", "my-prod-eu-west-1"] {
+    for ctx in &[
+        "prod",
+        "staging",
+        "dev",
+        "k8s-cluster-1",
+        "my-prod-eu-west-1",
+    ] {
         let _ = context_color(ctx);
     }
 }

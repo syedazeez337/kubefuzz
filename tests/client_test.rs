@@ -14,7 +14,10 @@ fn current_context_returns_non_empty_string() {
     // Without a kubeconfig the function returns "unknown"; with one it returns the context name.
     // Either way the result must be a non-empty string.
     let ctx = current_context();
-    assert!(!ctx.is_empty(), "current_context must never return an empty string");
+    assert!(
+        !ctx.is_empty(),
+        "current_context must never return an empty string"
+    );
 }
 
 // ── list_contexts ─────────────────────────────────────────────────────────────
@@ -25,7 +28,10 @@ fn list_contexts_returns_sorted_list_or_empty() {
     if ctxs.len() > 1 {
         let mut sorted = ctxs.clone();
         sorted.sort();
-        assert_eq!(ctxs, sorted, "list_contexts must return alphabetically sorted contexts");
+        assert_eq!(
+            ctxs, sorted,
+            "list_contexts must return alphabetically sorted contexts"
+        );
     }
 }
 
@@ -71,7 +77,10 @@ fn save_last_context_trims_whitespace_on_reload() {
 
     save_last_context("my-cluster");
     let loaded = load_last_context().unwrap_or_default();
-    assert_eq!(loaded, "my-cluster", "loaded context must not have extra whitespace");
+    assert_eq!(
+        loaded, "my-cluster",
+        "loaded context must not have extra whitespace"
+    );
 
     match original {
         Some(ref ctx) => save_last_context(ctx),

@@ -14,7 +14,9 @@ fn help_flag() {
         .arg("--help")
         .assert()
         .success()
-        .stdout(predicate::str::contains("Fuzzy-first interactive Kubernetes resource navigator"))
+        .stdout(predicate::str::contains(
+            "Fuzzy-first interactive Kubernetes resource navigator",
+        ))
         .stdout(predicate::str::contains("--all-contexts"))
         .stdout(predicate::str::contains("--context"))
         .stdout(predicate::str::contains("--namespace"))

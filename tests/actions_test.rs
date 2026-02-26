@@ -19,23 +19,58 @@ use kubefuzz::items::{K8sItem, ResourceKind};
 // ── Test item helpers ─────────────────────────────────────────────────────────
 
 fn pod_item() -> K8sItem {
-    K8sItem::new(ResourceKind::Pod, "default", "test-pod", "Running", "1d", "")
+    K8sItem::new(
+        ResourceKind::Pod,
+        "default",
+        "test-pod",
+        "Running",
+        "1d",
+        "",
+    )
 }
 
 fn service_item() -> K8sItem {
-    K8sItem::new(ResourceKind::Service, "default", "test-svc", "ClusterIP", "1d", "")
+    K8sItem::new(
+        ResourceKind::Service,
+        "default",
+        "test-svc",
+        "ClusterIP",
+        "1d",
+        "",
+    )
 }
 
 fn deploy_item() -> K8sItem {
-    K8sItem::new(ResourceKind::Deployment, "default", "test-deploy", "3/3", "1d", "")
+    K8sItem::new(
+        ResourceKind::Deployment,
+        "default",
+        "test-deploy",
+        "3/3",
+        "1d",
+        "",
+    )
 }
 
 fn sts_item() -> K8sItem {
-    K8sItem::new(ResourceKind::StatefulSet, "default", "test-sts", "3/3", "1d", "")
+    K8sItem::new(
+        ResourceKind::StatefulSet,
+        "default",
+        "test-sts",
+        "3/3",
+        "1d",
+        "",
+    )
 }
 
 fn ds_item() -> K8sItem {
-    K8sItem::new(ResourceKind::DaemonSet, "default", "test-ds", "3/3", "1d", "")
+    K8sItem::new(
+        ResourceKind::DaemonSet,
+        "default",
+        "test-ds",
+        "3/3",
+        "1d",
+        "",
+    )
 }
 
 fn node_item() -> K8sItem {
@@ -111,7 +146,11 @@ fn preview_toggle_path_is_under_runtime_dir() {
 fn install_preview_toggle_creates_mode_file_set_to_zero() {
     let _guard = PREVIEW_MUTEX.lock().unwrap();
     install_preview_toggle();
-    assert_eq!(current_preview_mode(), 0, "mode must be reset to 0 after install");
+    assert_eq!(
+        current_preview_mode(),
+        0,
+        "mode must be reset to 0 after install"
+    );
 }
 
 #[test]
@@ -119,7 +158,10 @@ fn install_preview_toggle_creates_executable_script() {
     let _guard = PREVIEW_MUTEX.lock().unwrap();
     install_preview_toggle();
     let toggle = preview_toggle_path();
-    assert!(toggle.exists(), "preview toggle script must exist after install");
+    assert!(
+        toggle.exists(),
+        "preview toggle script must exist after install"
+    );
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
@@ -144,7 +186,10 @@ fn action_logs_skips_non_pod_and_returns_ok() {
     // calling kubectl.
     let item = service_item();
     let result = action_logs(&[&item]);
-    assert!(result.is_ok(), "action_logs on Service must return Ok: {result:?}");
+    assert!(
+        result.is_ok(),
+        "action_logs on Service must return Ok: {result:?}"
+    );
 }
 
 #[test]
@@ -165,7 +210,10 @@ fn action_logs_multiple_items_skips_non_pods() {
 fn action_logs_pod_with_kubectl_success() {
     let item = pod_item();
     let result = with_fake_kubectl(0, || action_logs(&[&item]));
-    assert!(result.is_ok(), "action_logs should be Ok when kubectl exits 0: {result:?}");
+    assert!(
+        result.is_ok(),
+        "action_logs should be Ok when kubectl exits 0: {result:?}"
+    );
 }
 
 #[test]
@@ -173,7 +221,10 @@ fn action_logs_pod_with_kubectl_failure_still_ok() {
     // kubectl exits 1 → eprintln but function returns Ok(())
     let item = pod_item();
     let result = with_fake_kubectl(1, || action_logs(&[&item]));
-    assert!(result.is_ok(), "action_logs returns Ok even when kubectl fails: {result:?}");
+    assert!(
+        result.is_ok(),
+        "action_logs returns Ok even when kubectl fails: {result:?}"
+    );
 }
 
 // ── action_exec — kind guard ───────────────────────────────────────────────────
@@ -182,7 +233,10 @@ fn action_logs_pod_with_kubectl_failure_still_ok() {
 fn action_exec_returns_ok_immediately_for_non_pod() {
     let item = service_item();
     let result = action_exec(&item);
-    assert!(result.is_ok(), "action_exec on Service must return Ok: {result:?}");
+    assert!(
+        result.is_ok(),
+        "action_exec on Service must return Ok: {result:?}"
+    );
 }
 
 // ── action_exec — kubectl paths ───────────────────────────────────────────────
@@ -191,7 +245,10 @@ fn action_exec_returns_ok_immediately_for_non_pod() {
 fn action_exec_pod_with_kubectl_success_on_first_shell() {
     let item = pod_item();
     let result = with_fake_kubectl(0, || action_exec(&item));
-    assert!(result.is_ok(), "action_exec should be Ok when kubectl exits 0: {result:?}");
+    assert!(
+        result.is_ok(),
+        "action_exec should be Ok when kubectl exits 0: {result:?}"
+    );
 }
 
 #[test]
@@ -199,7 +256,10 @@ fn action_exec_pod_with_kubectl_failure_on_both_shells() {
     // Both /bin/sh and /bin/bash fail (exit 1) → eprintln but Ok(())
     let item = pod_item();
     let result = with_fake_kubectl(1, || action_exec(&item));
-    assert!(result.is_ok(), "action_exec returns Ok even when all shells fail: {result:?}");
+    assert!(
+        result.is_ok(),
+        "action_exec returns Ok even when all shells fail: {result:?}"
+    );
 }
 
 // ── action_delete — stdin-empty cancel paths ──────────────────────────────────
@@ -209,7 +269,10 @@ fn action_delete_single_item_cancelled_on_empty_stdin() {
     // In automated runs stdin is closed → read_line returns "" → not "y" → cancel
     let item = pod_item();
     let result = action_delete(&[&item]);
-    assert!(result.is_ok(), "action_delete with empty stdin must return Ok: {result:?}");
+    assert!(
+        result.is_ok(),
+        "action_delete with empty stdin must return Ok: {result:?}"
+    );
 }
 
 #[test]
@@ -223,11 +286,23 @@ fn action_delete_cluster_scoped_item_cancelled_on_empty_stdin() {
 fn action_delete_bulk_more_than_ten_cancelled_on_empty_stdin() {
     // >10 items triggers the "type 'yes'" guard — empty stdin → cancelled
     let items: Vec<K8sItem> = (0..11)
-        .map(|i| K8sItem::new(ResourceKind::Pod, "ns", format!("pod-{i}"), "Running", "1d", ""))
+        .map(|i| {
+            K8sItem::new(
+                ResourceKind::Pod,
+                "ns",
+                format!("pod-{i}"),
+                "Running",
+                "1d",
+                "",
+            )
+        })
         .collect();
     let refs: Vec<&K8sItem> = items.iter().collect();
     let result = action_delete(&refs);
-    assert!(result.is_ok(), "bulk delete with empty stdin must return Ok: {result:?}");
+    assert!(
+        result.is_ok(),
+        "bulk delete with empty stdin must return Ok: {result:?}"
+    );
 }
 
 // ── action_portforward — kind guard ───────────────────────────────────────────
@@ -236,7 +311,10 @@ fn action_delete_bulk_more_than_ten_cancelled_on_empty_stdin() {
 fn action_portforward_returns_ok_immediately_for_non_pod_non_service() {
     let item = deploy_item();
     let result = action_portforward(&item);
-    assert!(result.is_ok(), "action_portforward on Deployment must return Ok: {result:?}");
+    assert!(
+        result.is_ok(),
+        "action_portforward on Deployment must return Ok: {result:?}"
+    );
 }
 
 #[test]
@@ -253,7 +331,10 @@ fn action_portforward_pod_cancelled_on_empty_stdin() {
     // Port prompt reads stdin; empty stdin → Ok(None) for local port → "Cancelled."
     let item = pod_item();
     let result = action_portforward(&item);
-    assert!(result.is_ok(), "action_portforward cancelled on empty stdin: {result:?}");
+    assert!(
+        result.is_ok(),
+        "action_portforward cancelled on empty stdin: {result:?}"
+    );
 }
 
 #[test]
@@ -269,7 +350,10 @@ fn action_portforward_service_cancelled_on_empty_stdin() {
 fn action_rollout_restart_skips_pod_and_returns_ok() {
     let item = pod_item();
     let result = action_rollout_restart(&[&item]);
-    assert!(result.is_ok(), "action_rollout_restart on Pod must skip and return Ok: {result:?}");
+    assert!(
+        result.is_ok(),
+        "action_rollout_restart on Pod must skip and return Ok: {result:?}"
+    );
 }
 
 #[test]
@@ -285,7 +369,10 @@ fn action_rollout_restart_skips_service_and_returns_ok() {
 fn action_rollout_restart_deploy_kubectl_success() {
     let item = deploy_item();
     let result = with_fake_kubectl(0, || action_rollout_restart(&[&item]));
-    assert!(result.is_ok(), "rollout restart should be Ok when kubectl exits 0: {result:?}");
+    assert!(
+        result.is_ok(),
+        "rollout restart should be Ok when kubectl exits 0: {result:?}"
+    );
 }
 
 #[test]
@@ -307,7 +394,10 @@ fn action_rollout_restart_kubectl_failure_still_ok() {
     // kubectl exits 1 → eprintln the stderr but function returns Ok(())
     let item = deploy_item();
     let result = with_fake_kubectl(1, || action_rollout_restart(&[&item]));
-    assert!(result.is_ok(), "rollout restart returns Ok even when kubectl fails: {result:?}");
+    assert!(
+        result.is_ok(),
+        "rollout restart returns Ok even when kubectl fails: {result:?}"
+    );
 }
 
 #[test]
@@ -325,14 +415,20 @@ fn action_rollout_restart_mixed_kinds_skips_invalid() {
 fn action_yaml_kubectl_success() {
     let item = pod_item();
     let result = with_fake_kubectl(0, || action_yaml(&[&item]));
-    assert!(result.is_ok(), "action_yaml should be Ok when kubectl exits 0: {result:?}");
+    assert!(
+        result.is_ok(),
+        "action_yaml should be Ok when kubectl exits 0: {result:?}"
+    );
 }
 
 #[test]
 fn action_yaml_kubectl_failure_still_ok() {
     let item = pod_item();
     let result = with_fake_kubectl(1, || action_yaml(&[&item]));
-    assert!(result.is_ok(), "action_yaml returns Ok even when kubectl fails: {result:?}");
+    assert!(
+        result.is_ok(),
+        "action_yaml returns Ok even when kubectl fails: {result:?}"
+    );
 }
 
 #[test]
@@ -348,7 +444,10 @@ fn action_yaml_works_for_any_resource_kind() {
 fn action_describe_kubectl_success() {
     let item = pod_item();
     let result = with_fake_kubectl(0, || action_describe(&[&item]));
-    assert!(result.is_ok(), "action_describe should be Ok when kubectl exits 0: {result:?}");
+    assert!(
+        result.is_ok(),
+        "action_describe should be Ok when kubectl exits 0: {result:?}"
+    );
 }
 
 #[test]
@@ -356,7 +455,10 @@ fn action_describe_kubectl_failure_falls_back_to_output_str() {
     // kubectl exits 1 → falls back to printing item.output_str(), still Ok(())
     let item = pod_item();
     let result = with_fake_kubectl(1, || action_describe(&[&item]));
-    assert!(result.is_ok(), "action_describe returns Ok even when kubectl fails: {result:?}");
+    assert!(
+        result.is_ok(),
+        "action_describe returns Ok even when kubectl fails: {result:?}"
+    );
 }
 
 #[test]
@@ -370,7 +472,14 @@ fn action_describe_works_for_cluster_scoped_resources() {
 
 #[test]
 fn action_logs_passes_context_flag_for_multi_cluster_item() {
-    let item = K8sItem::new(ResourceKind::Pod, "ns", "pod", "Running", "1d", "prod-cluster");
+    let item = K8sItem::new(
+        ResourceKind::Pod,
+        "ns",
+        "pod",
+        "Running",
+        "1d",
+        "prod-cluster",
+    );
     // With fake kubectl, we just verify the call doesn't blow up
     let result = with_fake_kubectl(0, || action_logs(&[&item]));
     assert!(result.is_ok());

@@ -58,7 +58,11 @@ fn filter_service_aliases() {
         let kinds = args_with(alias)
             .resource_filter()
             .unwrap_or_else(|| panic!("alias '{alias}' should resolve"));
-        assert_eq!(kinds, vec![ResourceKind::Service], "alias '{alias}' → Service");
+        assert_eq!(
+            kinds,
+            vec![ResourceKind::Service],
+            "alias '{alias}' → Service"
+        );
     }
 }
 
@@ -70,7 +74,11 @@ fn filter_deploy_aliases() {
         let kinds = args_with(alias)
             .resource_filter()
             .unwrap_or_else(|| panic!("alias '{alias}' should resolve"));
-        assert_eq!(kinds, vec![ResourceKind::Deployment], "alias '{alias}' → Deployment");
+        assert_eq!(
+            kinds,
+            vec![ResourceKind::Deployment],
+            "alias '{alias}' → Deployment"
+        );
     }
 }
 
@@ -82,7 +90,11 @@ fn filter_statefulset_aliases() {
         let kinds = args_with(alias)
             .resource_filter()
             .unwrap_or_else(|| panic!("alias '{alias}' should resolve"));
-        assert_eq!(kinds, vec![ResourceKind::StatefulSet], "alias '{alias}' → StatefulSet");
+        assert_eq!(
+            kinds,
+            vec![ResourceKind::StatefulSet],
+            "alias '{alias}' → StatefulSet"
+        );
     }
 }
 
@@ -94,7 +106,11 @@ fn filter_daemonset_aliases() {
         let kinds = args_with(alias)
             .resource_filter()
             .unwrap_or_else(|| panic!("alias '{alias}' should resolve"));
-        assert_eq!(kinds, vec![ResourceKind::DaemonSet], "alias '{alias}' → DaemonSet");
+        assert_eq!(
+            kinds,
+            vec![ResourceKind::DaemonSet],
+            "alias '{alias}' → DaemonSet"
+        );
     }
 }
 
@@ -106,7 +122,11 @@ fn filter_configmap_aliases() {
         let kinds = args_with(alias)
             .resource_filter()
             .unwrap_or_else(|| panic!("alias '{alias}' should resolve"));
-        assert_eq!(kinds, vec![ResourceKind::ConfigMap], "alias '{alias}' → ConfigMap");
+        assert_eq!(
+            kinds,
+            vec![ResourceKind::ConfigMap],
+            "alias '{alias}' → ConfigMap"
+        );
     }
 }
 
@@ -118,7 +138,11 @@ fn filter_secret_aliases() {
         let kinds = args_with(alias)
             .resource_filter()
             .unwrap_or_else(|| panic!("alias '{alias}' should resolve"));
-        assert_eq!(kinds, vec![ResourceKind::Secret], "alias '{alias}' → Secret");
+        assert_eq!(
+            kinds,
+            vec![ResourceKind::Secret],
+            "alias '{alias}' → Secret"
+        );
     }
 }
 
@@ -130,7 +154,11 @@ fn filter_ingress_aliases() {
         let kinds = args_with(alias)
             .resource_filter()
             .unwrap_or_else(|| panic!("alias '{alias}' should resolve"));
-        assert_eq!(kinds, vec![ResourceKind::Ingress], "alias '{alias}' → Ingress");
+        assert_eq!(
+            kinds,
+            vec![ResourceKind::Ingress],
+            "alias '{alias}' → Ingress"
+        );
     }
 }
 
@@ -154,7 +182,11 @@ fn filter_namespace_aliases() {
         let kinds = args_with(alias)
             .resource_filter()
             .unwrap_or_else(|| panic!("alias '{alias}' should resolve"));
-        assert_eq!(kinds, vec![ResourceKind::Namespace], "alias '{alias}' → Namespace");
+        assert_eq!(
+            kinds,
+            vec![ResourceKind::Namespace],
+            "alias '{alias}' → Namespace"
+        );
     }
 }
 
@@ -194,7 +226,11 @@ fn filter_cronjob_aliases() {
         let kinds = args_with(alias)
             .resource_filter()
             .unwrap_or_else(|| panic!("alias '{alias}' should resolve"));
-        assert_eq!(kinds, vec![ResourceKind::CronJob], "alias '{alias}' → CronJob");
+        assert_eq!(
+            kinds,
+            vec![ResourceKind::CronJob],
+            "alias '{alias}' → CronJob"
+        );
     }
 }
 
@@ -212,7 +248,9 @@ fn filter_unknown_alias_returns_none() {
 #[test]
 fn filter_case_insensitive_pod() {
     assert_eq!(
-        args_with("PODS").resource_filter().expect("PODS should resolve"),
+        args_with("PODS")
+            .resource_filter()
+            .expect("PODS should resolve"),
         vec![ResourceKind::Pod]
     );
 }
@@ -220,7 +258,9 @@ fn filter_case_insensitive_pod() {
 #[test]
 fn filter_case_insensitive_deploy() {
     assert_eq!(
-        args_with("DEPLOY").resource_filter().expect("DEPLOY should resolve"),
+        args_with("DEPLOY")
+            .resource_filter()
+            .expect("DEPLOY should resolve"),
         vec![ResourceKind::Deployment]
     );
 }
@@ -228,11 +268,15 @@ fn filter_case_insensitive_deploy() {
 #[test]
 fn filter_case_insensitive_mixed_case() {
     assert_eq!(
-        args_with("PoD").resource_filter().expect("PoD should resolve"),
+        args_with("PoD")
+            .resource_filter()
+            .expect("PoD should resolve"),
         vec![ResourceKind::Pod]
     );
     assert_eq!(
-        args_with("Svc").resource_filter().expect("Svc should resolve"),
+        args_with("Svc")
+            .resource_filter()
+            .expect("Svc should resolve"),
         vec![ResourceKind::Service]
     );
 }

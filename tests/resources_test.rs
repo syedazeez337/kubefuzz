@@ -67,13 +67,23 @@ fn priority_critical_statuses_are_zero() {
         "BackOff",
     ];
     for s in &critical {
-        assert_eq!(status_priority(s), 0, "'{s}' should be priority 0 (critical)");
+        assert_eq!(
+            status_priority(s),
+            0,
+            "'{s}' should be priority 0 (critical)"
+        );
     }
 }
 
 #[test]
 fn priority_warning_and_deleted_statuses_are_one() {
-    let warning = ["[DELETED]", "Pending", "ContainerCreating", "Terminating", "Init:0/1"];
+    let warning = [
+        "[DELETED]",
+        "Pending",
+        "ContainerCreating",
+        "Terminating",
+        "Init:0/1",
+    ];
     for s in &warning {
         assert_eq!(status_priority(s), 1, "'{s}' should be priority 1");
     }
@@ -81,9 +91,20 @@ fn priority_warning_and_deleted_statuses_are_one() {
 
 #[test]
 fn priority_healthy_statuses_are_two() {
-    let healthy = ["Running", "Active", "ClusterIP", "Complete", "Succeeded", "3/3"];
+    let healthy = [
+        "Running",
+        "Active",
+        "ClusterIP",
+        "Complete",
+        "Succeeded",
+        "3/3",
+    ];
     for s in &healthy {
-        assert_eq!(status_priority(s), 2, "'{s}' should be priority 2 (healthy)");
+        assert_eq!(
+            status_priority(s),
+            2,
+            "'{s}' should be priority 2 (healthy)"
+        );
     }
 }
 
@@ -98,7 +119,10 @@ fn resource_age_no_timestamp_returns_question_mark() {
 fn resource_age_old_timestamp_returns_days() {
     // 2020-01-01 is always many days ago
     let time: Time = serde_json::from_str(r#""2020-01-01T00:00:00Z""#).unwrap();
-    let meta = ObjectMeta { creation_timestamp: Some(time), ..Default::default() };
+    let meta = ObjectMeta {
+        creation_timestamp: Some(time),
+        ..Default::default()
+    };
     let age = resource_age(&meta);
     assert!(age.ends_with('d'), "expected days suffix, got: {age}");
 }
@@ -113,7 +137,10 @@ fn pod_status_no_status_returns_unknown() {
 #[test]
 fn pod_status_phase_running() {
     let pod = Pod {
-        status: Some(PodStatus { phase: Some("Running".to_string()), ..Default::default() }),
+        status: Some(PodStatus {
+            phase: Some("Running".to_string()),
+            ..Default::default()
+        }),
         ..Default::default()
     };
     assert_eq!(pod_status(&pod), "Running");
@@ -122,7 +149,10 @@ fn pod_status_phase_running() {
 #[test]
 fn pod_status_phase_pending() {
     let pod = Pod {
-        status: Some(PodStatus { phase: Some("Pending".to_string()), ..Default::default() }),
+        status: Some(PodStatus {
+            phase: Some("Pending".to_string()),
+            ..Default::default()
+        }),
         ..Default::default()
     };
     assert_eq!(pod_status(&pod), "Pending");
@@ -136,7 +166,10 @@ fn pod_status_terminating_takes_priority() {
             deletion_timestamp: Some(serde_json::from_str(r#""2024-01-01T00:00:00Z""#).unwrap()),
             ..Default::default()
         },
-        status: Some(PodStatus { phase: Some("Running".to_string()), ..Default::default() }),
+        status: Some(PodStatus {
+            phase: Some("Running".to_string()),
+            ..Default::default()
+        }),
         ..Default::default()
     };
     assert_eq!(pod_status(&pod), "Terminating");
@@ -270,7 +303,9 @@ fn pod_status_pod_initializing_reason_falls_through_to_init_containers() {
                 ..Default::default()
             }]),
             init_container_statuses: Some(vec![ContainerStatus {
-                state: Some(ContainerState { ..Default::default() }),
+                state: Some(ContainerState {
+                    ..Default::default()
+                }),
                 ..Default::default()
             }]),
             ..Default::default()
@@ -306,7 +341,9 @@ fn pod_status_init_progress_none_done() {
     let pod = Pod {
         status: Some(PodStatus {
             init_container_statuses: Some(vec![ContainerStatus {
-                state: Some(ContainerState { ..Default::default() }),
+                state: Some(ContainerState {
+                    ..Default::default()
+                }),
                 ..Default::default()
             }]),
             ..Default::default()
@@ -321,13 +358,18 @@ fn pod_status_init_progress_partial() {
     // 1 done (exit_code=0), 2 total
     let done = ContainerStatus {
         state: Some(ContainerState {
-            terminated: Some(ContainerStateTerminated { exit_code: 0, ..Default::default() }),
+            terminated: Some(ContainerStateTerminated {
+                exit_code: 0,
+                ..Default::default()
+            }),
             ..Default::default()
         }),
         ..Default::default()
     };
     let running = ContainerStatus {
-        state: Some(ContainerState { ..Default::default() }),
+        state: Some(ContainerState {
+            ..Default::default()
+        }),
         ..Default::default()
     };
     let pod = Pod {
@@ -350,7 +392,10 @@ fn service_status_defaults_to_clusterip() {
 #[test]
 fn service_status_nodeport() {
     let svc = Service {
-        spec: Some(ServiceSpec { type_: Some("NodePort".to_string()), ..Default::default() }),
+        spec: Some(ServiceSpec {
+            type_: Some("NodePort".to_string()),
+            ..Default::default()
+        }),
         ..Default::default()
     };
     assert_eq!(service_status(&svc), "NodePort");
@@ -359,7 +404,10 @@ fn service_status_nodeport() {
 #[test]
 fn service_status_loadbalancer() {
     let svc = Service {
-        spec: Some(ServiceSpec { type_: Some("LoadBalancer".to_string()), ..Default::default() }),
+        spec: Some(ServiceSpec {
+            type_: Some("LoadBalancer".to_string()),
+            ..Default::default()
+        }),
         ..Default::default()
     };
     assert_eq!(service_status(&svc), "LoadBalancer");
@@ -388,8 +436,14 @@ fn deploy_status_defaults_zero_of_one() {
 #[test]
 fn deploy_status_fully_ready() {
     let d = Deployment {
-        spec: Some(DeploymentSpec { replicas: Some(3), ..Default::default() }),
-        status: Some(DeploymentStatus { ready_replicas: Some(3), ..Default::default() }),
+        spec: Some(DeploymentSpec {
+            replicas: Some(3),
+            ..Default::default()
+        }),
+        status: Some(DeploymentStatus {
+            ready_replicas: Some(3),
+            ..Default::default()
+        }),
         ..Default::default()
     };
     assert_eq!(deploy_status(&d), "3/3");
@@ -398,8 +452,14 @@ fn deploy_status_fully_ready() {
 #[test]
 fn deploy_status_degraded() {
     let d = Deployment {
-        spec: Some(DeploymentSpec { replicas: Some(3), ..Default::default() }),
-        status: Some(DeploymentStatus { ready_replicas: Some(1), ..Default::default() }),
+        spec: Some(DeploymentSpec {
+            replicas: Some(3),
+            ..Default::default()
+        }),
+        status: Some(DeploymentStatus {
+            ready_replicas: Some(1),
+            ..Default::default()
+        }),
         ..Default::default()
     };
     assert_eq!(deploy_status(&d), "1/3");
@@ -408,8 +468,14 @@ fn deploy_status_degraded() {
 #[test]
 fn deploy_status_zero_replicas() {
     let d = Deployment {
-        spec: Some(DeploymentSpec { replicas: Some(0), ..Default::default() }),
-        status: Some(DeploymentStatus { ready_replicas: Some(0), ..Default::default() }),
+        spec: Some(DeploymentSpec {
+            replicas: Some(0),
+            ..Default::default()
+        }),
+        status: Some(DeploymentStatus {
+            ready_replicas: Some(0),
+            ..Default::default()
+        }),
         ..Default::default()
     };
     assert_eq!(deploy_status(&d), "0/0");
@@ -490,7 +556,10 @@ fn secret_status_defaults_to_opaque() {
 
 #[test]
 fn secret_status_tls_type() {
-    let s = Secret { type_: Some("kubernetes.io/tls".to_string()), ..Default::default() };
+    let s = Secret {
+        type_: Some("kubernetes.io/tls".to_string()),
+        ..Default::default()
+    };
     assert_eq!(secret_status(&s), "kubernetes.io/tls");
 }
 
@@ -565,7 +634,9 @@ fn ingress_status_ip_preferred_over_hostname() {
 fn ingress_status_empty_ingress_list_is_pending() {
     let ing = Ingress {
         status: Some(IngressStatus {
-            load_balancer: Some(IngressLoadBalancerStatus { ingress: Some(vec![]) }),
+            load_balancer: Some(IngressLoadBalancerStatus {
+                ingress: Some(vec![]),
+            }),
         }),
         ..Default::default()
     };
@@ -712,9 +783,7 @@ fn job_status_no_status_returns_unknown() {
 fn job_status_complete_when_completion_time_set() {
     let job = Job {
         status: Some(JobStatus {
-            completion_time: Some(
-                serde_json::from_str(r#""2024-01-01T00:00:00Z""#).unwrap(),
-            ),
+            completion_time: Some(serde_json::from_str(r#""2024-01-01T00:00:00Z""#).unwrap()),
             ..Default::default()
         }),
         ..Default::default()
@@ -725,7 +794,10 @@ fn job_status_complete_when_completion_time_set() {
 #[test]
 fn job_status_failed_with_nonzero_failures() {
     let job = Job {
-        status: Some(JobStatus { failed: Some(2), ..Default::default() }),
+        status: Some(JobStatus {
+            failed: Some(2),
+            ..Default::default()
+        }),
         ..Default::default()
     };
     assert_eq!(job_status(&job), "Failed(2)");
@@ -734,7 +806,10 @@ fn job_status_failed_with_nonzero_failures() {
 #[test]
 fn job_status_active_when_running() {
     let job = Job {
-        status: Some(JobStatus { active: Some(3), ..Default::default() }),
+        status: Some(JobStatus {
+            active: Some(3),
+            ..Default::default()
+        }),
         ..Default::default()
     };
     assert_eq!(job_status(&job), "Active(3)");
@@ -744,7 +819,11 @@ fn job_status_active_when_running() {
 fn job_status_zero_failures_falls_through_to_active_check() {
     // failed=0 is not >0, so it skips the failed branch
     let job = Job {
-        status: Some(JobStatus { failed: Some(0), active: Some(1), ..Default::default() }),
+        status: Some(JobStatus {
+            failed: Some(0),
+            active: Some(1),
+            ..Default::default()
+        }),
         ..Default::default()
     };
     assert_eq!(job_status(&job), "Active(1)");
@@ -772,7 +851,10 @@ fn cronjob_status_active_when_jobs_running() {
 #[test]
 fn cronjob_status_empty_active_list_returns_scheduled() {
     let cj = CronJob {
-        status: Some(CronJobStatus { active: Some(vec![]), ..Default::default() }),
+        status: Some(CronJobStatus {
+            active: Some(vec![]),
+            ..Default::default()
+        }),
         ..Default::default()
     };
     assert_eq!(cronjob_status(&cj), "Scheduled");
