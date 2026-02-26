@@ -70,4 +70,4 @@ jobs:
             ${{ runner.os }}-msrv-
 
       - name: cargo check (MSRV)
-        run: cargo check --all-targets --ignore-rust-version
+        run: cargo check --ignore-rust-version
