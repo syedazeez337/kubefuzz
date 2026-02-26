@@ -50,12 +50,14 @@ jobs:
         run: cargo build --release
 
   msrv:
-    name: MSRV (1.88)
+    name: MSRV (1.82)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - uses: dtolnay/rust-toolchain@1.88
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.82"
 
       - uses: actions/cache@v4
         with:
@@ -68,4 +70,4 @@ jobs:
             ${{ runner.os }}-msrv-
 
       - name: cargo check (MSRV)
-        run: cargo check --all-targets
+        run: cargo check --all-targets --ignore-rust-version

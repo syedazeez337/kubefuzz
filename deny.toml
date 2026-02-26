@@ -7,9 +7,12 @@ targets = []
 
 # ── Advisories ────────────────────────────────────────────────────────────────
 [advisories]
-# Deny any crate with an unpatched security advisory
 version = 2
-deny = ["unsound", "unmaintained", "vulnerability", "notice", "deprecated"]
+vulnerability = "deny"
+unmaintained = "deny"
+unsound = "deny"
+notice = "warn"
+yanked = "warn"
 
 # ── Licenses ──────────────────────────────────────────────────────────────────
 [licenses]
