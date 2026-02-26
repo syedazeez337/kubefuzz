@@ -5,19 +5,19 @@
     clippy::too_many_lines,           // watch_resources match arm is inherently long
 )]
 
-mod actions;
-mod cli;
-mod items;
-mod k8s;
-
 use anyhow::Result;
 // RST-007: imports moved to module top
 use clap::{CommandFactory, Parser};
 use clap_complete::generate;
-use cli::Args;
 use crossterm::event::{KeyCode, KeyModifiers};
-use items::{K8sItem, ResourceKind};
-use k8s::{
+use kubefuzz::actions::{
+    action_delete, action_describe, action_exec, action_logs, action_portforward,
+    action_rollout_restart, action_yaml, install_preview_toggle, preview_toggle_path, runtime_dir,
+};
+use kubefuzz::cli::Args;
+use kubefuzz::items::{K8sItem, ResourceKind};
+#[allow(unused_imports)]
+use kubefuzz::k8s::{
     client::{
         build_client_for_context, current_context, list_contexts, load_last_context,
         save_last_context,
@@ -26,11 +26,6 @@ use k8s::{
 };
 use skim::prelude::*;
 use std::{borrow::Cow, sync::Arc};
-
-use actions::{
-    action_delete, action_describe, action_exec, action_logs, action_portforward,
-    action_rollout_restart, action_yaml, install_preview_toggle, preview_toggle_path, runtime_dir,
-};
 
 #[tokio::main]
 async fn main() -> Result<()> {

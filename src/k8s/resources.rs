@@ -482,7 +482,7 @@ pub fn status_priority(status: &str) -> u8 {
 
 // ─── Per-resource status extractors ──────────────────────────────────────────
 
-fn pod_status(pod: &Pod) -> String {
+pub fn pod_status(pod: &Pod) -> String {
     if pod.metadata.deletion_timestamp.is_some() {
         return "Terminating".to_string();
     }
@@ -546,7 +546,7 @@ fn pod_status(pod: &Pod) -> String {
         .unwrap_or_else(|| "Unknown".to_string())
 }
 
-fn service_status(svc: &Service) -> String {
+pub fn service_status(svc: &Service) -> String {
     svc.spec
         .as_ref()
         .and_then(|s| s.type_.as_deref())
@@ -554,7 +554,7 @@ fn service_status(svc: &Service) -> String {
         .to_string()
 }
 
-fn deploy_status(d: &Deployment) -> String {
+pub fn deploy_status(d: &Deployment) -> String {
     let ready = d
         .status
         .as_ref()
@@ -564,7 +564,7 @@ fn deploy_status(d: &Deployment) -> String {
     format!("{ready}/{desired}")
 }
 
-fn statefulset_status(sts: &StatefulSet) -> String {
+pub fn statefulset_status(sts: &StatefulSet) -> String {
     let ready = sts
         .status
         .as_ref()
@@ -574,17 +574,17 @@ fn statefulset_status(sts: &StatefulSet) -> String {
     format!("{ready}/{total}")
 }
 
-fn daemonset_status(ds: &DaemonSet) -> String {
+pub fn daemonset_status(ds: &DaemonSet) -> String {
     let ready = ds.status.as_ref().map_or(0, |s| s.number_ready);
     let desired = ds.status.as_ref().map_or(0, |s| s.desired_number_scheduled);
     format!("{ready}/{desired}")
 }
 
-fn secret_status(s: &Secret) -> String {
+pub fn secret_status(s: &Secret) -> String {
     s.type_.clone().unwrap_or_else(|| "Opaque".to_string())
 }
 
-fn ingress_status(ing: &Ingress) -> String {
+pub fn ingress_status(ing: &Ingress) -> String {
     ing.status
         .as_ref()
         .and_then(|s| s.load_balancer.as_ref())
@@ -595,7 +595,7 @@ fn ingress_status(ing: &Ingress) -> String {
         .to_string()
 }
 
-fn node_status(node: &Node) -> String {
+pub fn node_status(node: &Node) -> String {
     node.status
         .as_ref()
         .and_then(|s| s.conditions.as_ref())
@@ -612,7 +612,7 @@ fn node_status(node: &Node) -> String {
         )
 }
 
-fn namespace_status(ns: &Namespace) -> String {
+pub fn namespace_status(ns: &Namespace) -> String {
     ns.status
         .as_ref()
         .and_then(|s| s.phase.as_deref())
@@ -620,7 +620,7 @@ fn namespace_status(ns: &Namespace) -> String {
         .to_string()
 }
 
-fn pvc_status(pvc: &PersistentVolumeClaim) -> String {
+pub fn pvc_status(pvc: &PersistentVolumeClaim) -> String {
     pvc.status
         .as_ref()
         .and_then(|s| s.phase.as_deref())
@@ -628,7 +628,7 @@ fn pvc_status(pvc: &PersistentVolumeClaim) -> String {
         .to_string()
 }
 
-fn job_status(job: &Job) -> String {
+pub fn job_status(job: &Job) -> String {
     let s = job.status.as_ref();
     if s.and_then(|s| s.completion_time.as_ref()).is_some() {
         return "Complete".to_string();
@@ -645,7 +645,7 @@ fn job_status(job: &Job) -> String {
     "Unknown".to_string()
 }
 
-fn cronjob_status(cj: &CronJob) -> String {
+pub fn cronjob_status(cj: &CronJob) -> String {
     let active = cj
         .status
         .as_ref()
@@ -685,188 +685,4 @@ pub fn resource_age(meta: &ObjectMeta) -> String {
                 )
         })
         .unwrap_or_else(|| "?".to_string())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use k8s_openapi::api::core::v1::{
-        ContainerState, ContainerStateTerminated, ContainerStateWaiting, ContainerStatus, PodStatus,
-    };
-
-    // ── status_priority ───────────────────────────────────────────────────────
-
-    #[test]
-    fn priority_critical_statuses() {
-        for s in &[
-            "CrashLoopBackOff",
-            "ImagePullBackOff",
-            "ErrImagePull",
-            "Error",
-            "Failed",
-            "OOMKilled",
-            "NotReady",
-            "Failed(3)",
-            "Evicted",
-            "BackOff",
-        ] {
-            assert_eq!(
-                status_priority(s),
-                0,
-                "'{s}' should be priority 0 (critical)"
-            );
-        }
-    }
-
-    #[test]
-    fn priority_warning_statuses() {
-        for s in &[
-            "[DELETED]",
-            "Pending",
-            "ContainerCreating",
-            "Terminating",
-            "Init:0/1",
-        ] {
-            assert_eq!(
-                status_priority(s),
-                1,
-                "'{s}' should be priority 1 (warning)"
-            );
-        }
-    }
-
-    #[test]
-    fn priority_healthy_statuses() {
-        for s in &["Running", "Active", "ClusterIP", "Complete", "Succeeded"] {
-            assert_eq!(
-                status_priority(s),
-                2,
-                "'{s}' should be priority 2 (healthy)"
-            );
-        }
-    }
-
-    // ── resource_age ─────────────────────────────────────────────────────────
-
-    #[test]
-    fn resource_age_no_timestamp_returns_question_mark() {
-        use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
-        assert_eq!(resource_age(&ObjectMeta::default()), "?");
-    }
-
-    // ── pod_status ────────────────────────────────────────────────────────────
-
-    #[test]
-    fn pod_status_no_status_is_unknown() {
-        assert_eq!(pod_status(&Pod::default()), "Unknown");
-    }
-
-    #[test]
-    fn pod_status_phase_running() {
-        let pod = Pod {
-            status: Some(PodStatus {
-                phase: Some("Running".to_string()),
-                ..Default::default()
-            }),
-            ..Default::default()
-        };
-        assert_eq!(pod_status(&pod), "Running");
-    }
-
-    #[test]
-    fn pod_status_crashloop() {
-        let pod = Pod {
-            status: Some(PodStatus {
-                container_statuses: Some(vec![ContainerStatus {
-                    state: Some(ContainerState {
-                        waiting: Some(ContainerStateWaiting {
-                            reason: Some("CrashLoopBackOff".to_string()),
-                            ..Default::default()
-                        }),
-                        ..Default::default()
-                    }),
-                    ..Default::default()
-                }]),
-                ..Default::default()
-            }),
-            ..Default::default()
-        };
-        assert_eq!(pod_status(&pod), "CrashLoopBackOff");
-    }
-
-    #[test]
-    fn pod_status_oomkilled() {
-        let pod = Pod {
-            status: Some(PodStatus {
-                container_statuses: Some(vec![ContainerStatus {
-                    state: Some(ContainerState {
-                        terminated: Some(ContainerStateTerminated {
-                            exit_code: 137,
-                            reason: Some("OOMKilled".to_string()),
-                            ..Default::default()
-                        }),
-                        ..Default::default()
-                    }),
-                    ..Default::default()
-                }]),
-                ..Default::default()
-            }),
-            ..Default::default()
-        };
-        assert_eq!(pod_status(&pod), "OOMKilled");
-    }
-
-    #[test]
-    fn pod_status_init_progress() {
-        let pod = Pod {
-            status: Some(PodStatus {
-                init_container_statuses: Some(vec![ContainerStatus {
-                    // running but not terminated — counts as 0 done out of 1
-                    state: Some(ContainerState {
-                        ..Default::default()
-                    }),
-                    ..Default::default()
-                }]),
-                ..Default::default()
-            }),
-            ..Default::default()
-        };
-        assert_eq!(pod_status(&pod), "Init:0/1");
-    }
-
-    // ── deploy_status ─────────────────────────────────────────────────────────
-
-    #[test]
-    fn deploy_status_fully_ready() {
-        use k8s_openapi::api::apps::v1::{Deployment, DeploymentSpec, DeploymentStatus};
-        let d = Deployment {
-            spec: Some(DeploymentSpec {
-                replicas: Some(3),
-                ..Default::default()
-            }),
-            status: Some(DeploymentStatus {
-                ready_replicas: Some(3),
-                ..Default::default()
-            }),
-            ..Default::default()
-        };
-        assert_eq!(deploy_status(&d), "3/3");
-    }
-
-    #[test]
-    fn deploy_status_degraded() {
-        use k8s_openapi::api::apps::v1::{Deployment, DeploymentSpec, DeploymentStatus};
-        let d = Deployment {
-            spec: Some(DeploymentSpec {
-                replicas: Some(3),
-                ..Default::default()
-            }),
-            status: Some(DeploymentStatus {
-                ready_replicas: Some(1),
-                ..Default::default()
-            }),
-            ..Default::default()
-        };
-        assert_eq!(deploy_status(&d), "1/3");
-    }
 }

@@ -9,6 +9,10 @@ homepage = "https://github.com/syedazeez337/kubefuzz"
 keywords = ["kubernetes", "kubectl", "tui", "fuzzy", "k8s"]
 categories = ["command-line-utilities", "development-tools"]
 
+[lib]
+name = "kubefuzz"
+path = "src/lib.rs"
+
 [[bin]]
 name = "kf"
 path = "src/main.rs"
