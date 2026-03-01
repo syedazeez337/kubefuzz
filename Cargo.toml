@@ -9,6 +9,7 @@ repository = "https://github.com/syedazeez337/kuberift"
 homepage = "https://github.com/syedazeez337/kuberift"
 keywords = ["kubernetes", "kubectl", "tui", "fuzzy", "k8s"]
 categories = ["command-line-utilities", "development-tools"]
+exclude = ["docs/*.gif", "docs/*.mp4", "docs/*.png", "wiki/", "contrib/", "tests/"]
 
 [lib]
 name = "kuberift"
