@@ -274,14 +274,26 @@ kuberift/
 │   └── workflows/
 │       └── ci.yml              ← fmt, clippy, test, audit, release build
 ├── docs/
-│   ├── ARCHITECTURE.md         ← This file
-│   ├── CONTRIBUTING.md
-│   ├── REMEDIATION_PART1.md
-│   ├── REMEDIATION_PART2.md
-│   ├── RESEARCH.md
-│   ├── ROADMAP.md
-│   ├── SKIM_NOTES.md
-│   └── TESTING.md
+│   ├── guides/                 ← all documentation markdown
+│   │   ├── ARCHITECTURE.md     ← This file
+│   │   ├── CONTRIBUTING.md
+│   │   ├── REMEDIATION_PART1.md
+│   │   ├── REMEDIATION_PART2.md
+│   │   ├── RESEARCH.md
+│   │   ├── ROADMAP.md
+│   │   ├── SKIM_NOTES.md
+│   │   └── TESTING.md
+│   ├── manual/                 ← user manual (LaTeX source + compiled PDF)
+│   │   ├── kuberift-manual.tex
+│   │   └── kuberift-manual.pdf
+│   └── media/                  ← demo GIFs and MP4 recordings
+│       ├── demo.gif / demo.mp4
+│       ├── actions.gif / actions.mp4
+│       ├── delete.gif / delete.mp4
+│       ├── filter.gif / filter.mp4
+│       ├── multicluster.gif / multicluster.mp4
+│       ├── preview.gif / preview.mp4
+│       └── tour.gif
 ├── src/
 │   ├── main.rs                 ← Entry point, skim run loop, action dispatch
 │   ├── cli.rs                  ← Clap CLI definition + resource_filter()

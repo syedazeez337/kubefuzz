@@ -2,7 +2,7 @@
 
 kf runs all actions by invoking `kubectl` directly — it passes the correct `--context`, `-n`, and resource arguments automatically.
 
-![actions demo](https://raw.githubusercontent.com/syedazeez337/kuberift/master/docs/actions.gif)
+![actions demo](https://raw.githubusercontent.com/syedazeez337/kuberift/master/docs/media/actions.gif)
 
 ---
 
@@ -32,7 +32,7 @@ Type `exit` or press `ctrl-d` to return to kf.
 
 ## Delete — `ctrl-d`
 
-![delete demo](https://raw.githubusercontent.com/syedazeez337/kuberift/master/docs/delete.gif)
+![delete demo](https://raw.githubusercontent.com/syedazeez337/kuberift/master/docs/media/delete.gif)
 
 Shows a confirmation prompt before deleting anything:
 

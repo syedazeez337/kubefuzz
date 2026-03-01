@@ -1,6 +1,6 @@
 # Multi-Cluster
 
-![multicluster demo](https://raw.githubusercontent.com/syedazeez337/kuberift/master/docs/multicluster.gif)
+![multicluster demo](https://raw.githubusercontent.com/syedazeez337/kuberift/master/docs/media/multicluster.gif)
 
 kf has two multi-cluster modes: watching all contexts simultaneously and switching interactively.
 

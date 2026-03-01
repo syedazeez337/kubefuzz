@@ -1,6 +1,6 @@
 # Preview Modes
 
-![preview demo](https://raw.githubusercontent.com/syedazeez337/kuberift/master/docs/preview.gif)
+![preview demo](https://raw.githubusercontent.com/syedazeez337/kuberift/master/docs/media/preview.gif)
 
 The right-hand pane updates live as you move the cursor. Press **`ctrl-p`** to cycle through three modes.
 

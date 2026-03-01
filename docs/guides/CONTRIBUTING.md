@@ -62,6 +62,6 @@ chore: update skim to 0.16
 
 ## Current Priority
 
-See `docs/ROADMAP.md`. Phases 0–5 are complete. We are working on **Phase 6** (distribution and polish).
+See `docs/guides/ROADMAP.md`. Phases 0–5 are complete. We are working on **Phase 6** (distribution and polish).
 
 The most valuable contributions right now: pre-built release binaries, shell completions, and a demo GIF.

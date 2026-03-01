@@ -4,7 +4,7 @@
 
 `kf` lets you fuzzy-search every resource across every namespace in your cluster from a single terminal window. Select one or many, then describe, exec, tail logs, delete, port-forward, restart, or dump YAML — all without typing a single `kubectl` command.
 
-![demo](https://raw.githubusercontent.com/syedazeez337/kuberift/master/docs/demo.gif)
+![demo](https://raw.githubusercontent.com/syedazeez337/kuberift/master/docs/media/demo.gif)
 
 ---
 
@@ -19,6 +19,14 @@
 - **Multi-cluster support** — watch all kubeconfig contexts simultaneously with `--all-contexts`, or switch contexts interactively with `ctrl-x`
 - **Context persistence** — last-used context is remembered across sessions
 - **Demo mode** — works without a cluster; shows sample data so you can explore the UI
+
+---
+
+## Documentation
+
+A full user manual — installation, every keybinding, all actions, architecture, multi-cluster workflows, and the story of how skim shaped the design — is available as a compiled PDF:
+
+**[📄 docs/manual/kuberift-manual.pdf](docs/manual/kuberift-manual.pdf)**
 
 ---
 
