@@ -5,7 +5,7 @@
 See [Installation](Installation). The fastest path:
 
 ```bash
-curl -sL https://github.com/syedazeez337/kubefuzz/releases/latest/download/kf-x86_64-linux.tar.gz \
+curl -sL https://github.com/syedazeez337/kuberift/releases/latest/download/kf-x86_64-linux.tar.gz \
   | tar xz && sudo mv kf /usr/local/bin/kf
 ```
 

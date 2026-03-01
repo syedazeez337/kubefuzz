@@ -1,10 +1,10 @@
-# kf — KubeFuzz
+# kf — KubeRift
 
 > A fuzzy-first interactive Kubernetes resource navigator
 
 `kf` lets you fuzzy-search every resource across every namespace in your cluster from a single terminal window. Select one or many, then describe, exec, tail logs, delete, port-forward, restart, or dump YAML — all without typing a single `kubectl` command.
 
-![demo](https://raw.githubusercontent.com/syedazeez337/kubefuzz/master/docs/demo.gif)
+![demo](https://raw.githubusercontent.com/syedazeez337/kuberift/master/docs/demo.gif)
 
 ---
 
@@ -33,8 +33,8 @@
 ## Installation
 
 ```bash
-git clone https://github.com/syedazeez337/kubefuzz.git
-cd kubefuzz
+git clone https://github.com/syedazeez337/kuberift.git
+cd kuberift
 cargo build --release
 # Binary is at target/release/kf
 # Optionally move it somewhere on your PATH:
@@ -156,7 +156,7 @@ Each cluster gets a distinct color so items are immediately identifiable.
 
 ### Switching contexts interactively
 
-Press `ctrl-x` while `kf` is running to open a secondary fuzzy picker showing all your kubeconfig contexts. Selecting a context restarts the resource stream from that cluster. The selected context is saved to `~/.config/kubefuzz/last_context` and restored on the next launch.
+Press `ctrl-x` while `kf` is running to open a secondary fuzzy picker showing all your kubeconfig contexts. Selecting a context restarts the resource stream from that cluster. The selected context is saved to `~/.config/kuberift/last_context` and restored on the next launch.
 
 ---
 
@@ -179,7 +179,7 @@ If `kubectl` cannot connect to a cluster (no kubeconfig, invalid context, or net
 
 ```bash
 KUBECONFIG=/nonexistent kf
-# [kubefuzz] No cluster (...). Showing demo data.
+# [kuberift] No cluster (...). Showing demo data.
 ```
 
 ---
@@ -198,7 +198,7 @@ kf --kubeconfig ~/alt.yaml --context staging  # use an alternate kubeconfig
 
 | File | Purpose |
 |------|---------|
-| `~/.config/kubefuzz/last_context` | Last-used context, restored on next launch |
+| `~/.config/kuberift/last_context` | Last-used context, restored on next launch |
 | `$XDG_RUNTIME_DIR/<pid>/preview-mode` | Preview mode state (0=describe, 1=yaml, 2=logs) |
 | `$XDG_RUNTIME_DIR/<pid>/preview-toggle` | Shell script installed at startup for ctrl-p |
 

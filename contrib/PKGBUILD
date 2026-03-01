@@ -1,10 +1,10 @@
 # Maintainer: Syed Azeez <https://github.com/syedazeez337>
-pkgname=kubefuzz
+pkgname=kuberift
 pkgver=0.1.0
 pkgrel=1
 pkgdesc="Fuzzy-first interactive Kubernetes resource navigator"
 arch=('x86_64' 'aarch64')
-url="https://github.com/syedazeez337/kubefuzz"
+url="https://github.com/syedazeez337/kuberift"
 license=('MIT')
 depends=('kubectl')
 makedepends=('cargo')

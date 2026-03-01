@@ -1,6 +1,7 @@
-# KubeFuzz — actions: logs (ctrl-l), yaml (ctrl-y), rollout restart (ctrl-r)
+# KubeRift — actions: logs (ctrl-l), yaml (ctrl-y), rollout restart (ctrl-r)
 # Output: docs/actions.gif
 
+Output docs/actions.mp4
 Output docs/actions.gif
 
 Set Shell    "bash"
@@ -9,10 +10,11 @@ Set Width    1200
 Set Height    700
 Set Theme    "Dracula"
 Set TypingSpeed 60ms
+Set Framerate  60
 Set Padding  10
 
 # ── Stream pod logs with ctrl-l ───────────────────────────────────────────────
-Type "kf pods --context kind-kubefuzz-dev"
+Type "kf pods --context kind-kuberift-dev"
 Enter
 Sleep 3.5s
 
@@ -38,7 +40,7 @@ Escape
 Sleep 400ms
 
 # ── Rollout restart a deployment with ctrl-r ──────────────────────────────────
-Type "kf deploy --context kind-kubefuzz-dev"
+Type "kf deploy --context kind-kuberift-dev"
 Enter
 Sleep 3s
 

@@ -1,7 +1,7 @@
-//! Tests for kubefuzz::cli — Args::resource_filter alias resolution.
+//! Tests for kuberift::cli — Args::resource_filter alias resolution.
 
-use kubefuzz::cli::Args;
-use kubefuzz::items::ResourceKind;
+use kuberift::cli::Args;
+use kuberift::items::ResourceKind;
 
 // ── Helper ────────────────────────────────────────────────────────────────────
 

@@ -1,10 +1,10 @@
-# KubeFuzz — Roadmap
+# KubeRift — Roadmap
 
 ---
 
 ## Phase 0 — Skeleton ✅ COMPLETE
 
-- [x] `cargo new kubefuzz --bin`
+- [x] `cargo new kuberift --bin`
 - [x] Add skim, kube-rs, tokio to Cargo.toml
 - [x] Confirm skim compiles
 - [x] Create `K8sItem` struct implementing `SkimItem` with stub data
@@ -63,7 +63,7 @@
 
 - [x] `ctrl-x`: fuzzy-search kubeconfig contexts → switch active context
 - [x] `--all-contexts`: stream resources from all contexts simultaneously, color-coded by cluster
-- [x] Context persistence: `~/.config/kubefuzz/last_context`, restored on next launch
+- [x] Context persistence: `~/.config/kuberift/last_context`, restored on next launch
 - [x] All kubectl actions pass `--context` in multi-cluster mode
 - [x] `build_client_for_context`, `list_contexts`, `save/load_last_context` helpers
 
@@ -97,8 +97,8 @@
 
 ```bash
 # Clone the repo
-git clone https://github.com/syedazeez337/kubefuzz.git
-cd kubefuzz
+git clone https://github.com/syedazeez337/kuberift.git
+cd kuberift
 
 # Install Rust (if not already)
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh

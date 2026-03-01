@@ -1,6 +1,7 @@
-# KubeFuzz — safe delete with confirmation (multi-select + ctrl-d)
+# KubeRift — safe delete with confirmation (multi-select + ctrl-d)
 # Output: docs/delete.gif
 
+Output docs/delete.mp4
 Output docs/delete.gif
 
 Set Shell    "bash"
@@ -9,10 +10,11 @@ Set Width    1200
 Set Height    700
 Set Theme    "Dracula"
 Set TypingSpeed 60ms
+Set Framerate  60
 Set Padding  10
 
 # ── Open kf and filter to a specific pod ─────────────────────────────────────
-Type "kf pods --context kind-kubefuzz-dev"
+Type "kf pods --context kind-kuberift-dev"
 Enter
 Sleep 3.5s
 

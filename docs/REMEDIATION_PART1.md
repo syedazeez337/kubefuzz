@@ -1,4 +1,4 @@
-# KubeFuzz — Remediation Blueprint (Part 1: Security, Rust Standards, Infrastructure)
+# KubeRift — Remediation Blueprint (Part 1: Security, Rust Standards, Infrastructure)
 
 > **STATUS: COMPLETED** — All items in this document were implemented in commits `ad6f0d6`, `88b35eb`, `5e7c223`, and `f00caba` (2026-02-23 to 2026-02-25). This file is kept as a historical record.
 
@@ -23,8 +23,8 @@
 
 **Current code (actions.rs:11-12):**
 ```rust
-const PREVIEW_MODE_FILE: &str = "/tmp/kubefuzz-preview-mode";
-pub const PREVIEW_TOGGLE_SCRIPT: &str = "/tmp/kubefuzz-preview-toggle";
+const PREVIEW_MODE_FILE: &str = "/tmp/kuberift-preview-mode";
+pub const PREVIEW_TOGGLE_SCRIPT: &str = "/tmp/kuberift-preview-toggle";
 ```
 
 **Replace with:**
@@ -40,9 +40,9 @@ fn runtime_dir() -> &'static PathBuf {
         let base = dirs::runtime_dir()
             .or_else(|| std::env::var_os("XDG_RUNTIME_DIR").map(PathBuf::from))
             .unwrap_or_else(std::env::temp_dir);
-        let dir = base.join(format!("kubefuzz-{}", std::process::id()));
+        let dir = base.join(format!("kuberift-{}", std::process::id()));
         if let Err(e) = std::fs::create_dir_all(&dir) {
-            eprintln!("[kubefuzz] warning: cannot create runtime dir: {e}");
+            eprintln!("[kuberift] warning: cannot create runtime dir: {e}");
         }
         // Set restrictive permissions on Unix
         #[cfg(unix)]
@@ -82,7 +82,7 @@ pub fn install_preview_toggle() {
          printf $(( (n + 1) % 3 )) > \"{mode_str}\"\n"
     );
     if let Err(e) = std::fs::write(&toggle_path, &script) {
-        eprintln!("[kubefuzz] warning: cannot write preview toggle script: {e}");
+        eprintln!("[kuberift] warning: cannot write preview toggle script: {e}");
         return;
     }
     #[cfg(unix)]
@@ -91,7 +91,7 @@ pub fn install_preview_toggle() {
         let _ = std::fs::set_permissions(&toggle_path, std::fs::Permissions::from_mode(0o700));
     }
     if let Err(e) = std::fs::write(&mode_path, "0") {
-        eprintln!("[kubefuzz] warning: cannot write preview mode file: {e}");
+        eprintln!("[kuberift] warning: cannot write preview mode file: {e}");
     }
 }
 ```
@@ -162,7 +162,7 @@ args.extend_from_slice(&["--", &item.name, "--", shell]);
 Wait — kubectl exec syntax is: `kubectl exec -it <pod> -n <ns> -- <command>`. The pod name is positional. The fix for exec is to validate the name doesn't start with `-`:
 ```rust
 if item.name.starts_with('-') {
-    eprintln!("[kubefuzz] suspicious resource name: {}", item.name);
+    eprintln!("[kuberift] suspicious resource name: {}", item.name);
     return Ok(());
 }
 ```
@@ -196,7 +196,7 @@ fn read_port(prompt: &str, default: Option<&str>) -> Result<Option<u16>> {
         anyhow::bail!("Port 0 is not valid");
     }
     if port < 1024 {
-        eprintln!("[kubefuzz] warning: port {port} is privileged (may require root/admin)");
+        eprintln!("[kuberift] warning: port {port} is privileged (may require root/admin)");
     }
     Ok(Some(port))
 }
@@ -206,7 +206,7 @@ fn read_port(prompt: &str, default: Option<&str>) -> Result<Option<u16>> {
 ```rust
 pub fn action_portforward(item: &K8sItem) -> Result<()> {
     if !matches!(item.kind, ResourceKind::Pod | ResourceKind::Service) {
-        eprintln!("[kubefuzz] port-forward only works with pods and services (got {})", item.kind.as_str());
+        eprintln!("[kuberift] port-forward only works with pods and services (got {})", item.kind.as_str());
         return Ok(());
     }
 
@@ -225,7 +225,7 @@ pub fn action_portforward(item: &K8sItem) -> Result<()> {
     println!("Forwarding localhost:{local} → {target} port {remote}  (Ctrl-C to stop)");
     let status = kubectl(item).args(&args).status()?;
     if !status.success() {
-        eprintln!("[kubefuzz] port-forward exited with {status}");
+        eprintln!("[kuberift] port-forward exited with {status}");
     }
     Ok(())
 }
@@ -240,7 +240,7 @@ pub fn action_portforward(item: &K8sItem) -> Result<()> {
 **After the count check (line 114), add:**
 ```rust
 if count > 10 {
-    eprintln!("[kubefuzz] ⚠ WARNING: You are about to delete {count} resources.");
+    eprintln!("[kuberift] ⚠ WARNING: You are about to delete {count} resources.");
     print!("Type 'yes' (not just 'y') to confirm bulk delete: ");
     io::stdout().flush()?;
     let mut confirm = String::new();
@@ -271,14 +271,14 @@ if count > 10 {
 ```rust
 pub fn save_last_context(context: &str) {
     if let Some(dir) = dirs::config_dir() {
-        let dir = dir.join("kubefuzz");
+        let dir = dir.join("kuberift");
         if let Err(e) = std::fs::create_dir_all(&dir) {
-            eprintln!("[kubefuzz] warning: cannot create config dir: {e}");
+            eprintln!("[kuberift] warning: cannot create config dir: {e}");
             return;
         }
         let path = dir.join("last_context");
         if let Err(e) = std::fs::write(&path, context) {
-            eprintln!("[kubefuzz] warning: cannot save context: {e}");
+            eprintln!("[kuberift] warning: cannot save context: {e}");
             return;
         }
         #[cfg(unix)]
@@ -615,7 +615,7 @@ use crossterm::event::{KeyCode, KeyModifiers};
 **Pattern — replace every `let _ = <expr>;` with:**
 ```rust
 if let Err(e) = <expr> {
-    eprintln!("[kubefuzz] warning: <description>: {e}");
+    eprintln!("[kuberift] warning: <description>: {e}");
 }
 ```
 
@@ -623,9 +623,9 @@ if let Err(e) = <expr> {
 
 | File:Line | Current | Replacement |
 |-----------|---------|-------------|
-| main.rs:80 | `let _ = tx_k8s.send(demo_items());` | `if tx_k8s.send(demo_items()).is_err() { eprintln!("[kubefuzz] warning: failed to send demo items"); }` |
-| main.rs:173 | `let _ = tx.send(vec![...]);` | `if tx.send(vec![...]).is_err() { eprintln!("[kubefuzz] warning: failed to send context item"); }` |
-| resources.rs:155 | `let _ = task.await;` | `if let Err(e) = task.await { eprintln!("[kubefuzz] warning: watcher task panicked: {e}"); }` |
+| main.rs:80 | `let _ = tx_k8s.send(demo_items());` | `if tx_k8s.send(demo_items()).is_err() { eprintln!("[kuberift] warning: failed to send demo items"); }` |
+| main.rs:173 | `let _ = tx.send(vec![...]);` | `if tx.send(vec![...]).is_err() { eprintln!("[kuberift] warning: failed to send context item"); }` |
+| resources.rs:155 | `let _ = task.await;` | `if let Err(e) = task.await { eprintln!("[kuberift] warning: watcher task panicked: {e}"); }` |
 
 SEC-001 already covers the `actions.rs` and `client.rs` occurrences.
 

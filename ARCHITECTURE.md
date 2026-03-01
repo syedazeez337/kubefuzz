@@ -1,6 +1,6 @@
 # Architecture
 
-KubeFuzz (`kf`) is a single-binary TUI built in Rust. This document describes the actual source layout and data flow.
+KubeRift (`kf`) is a single-binary TUI built in Rust. This document describes the actual source layout and data flow.
 
 ## Source layout
 
@@ -69,7 +69,7 @@ Built in `build_skim_options()` which returns `anyhow::Result<SkimOptions>`. Con
 |----------|---------------|
 | No `/tmp` races | Runtime dir via `dirs::runtime_dir()` → `$XDG_RUNTIME_DIR` → `std::env::temp_dir()` |
 | Directory permissions | `0o700` on all runtime dirs created by kf |
-| Context file permissions | `0o600` on `~/.config/kubefuzz/last-context` |
+| Context file permissions | `0o600` on `~/.config/kuberift/last-context` |
 | Argument injection | `--` separator before all resource names in kubectl calls |
 | Port validation | 1–65535 enforced; warning for privileged ports < 1024 |
 | Bulk delete guard | >10 resources require typing `yes` at a prompt |
@@ -77,7 +77,7 @@ Built in `build_skim_options()` which returns `anyhow::Result<SkimOptions>`. Con
 
 ## Concurrency model
 
-KubeFuzz uses a **single tokio multi-thread runtime**. Each resource kind has an independent watcher task that streams updates into a shared `Arc<Mutex<Vec<K8sItem>>>`. The TUI loop runs synchronously on the main thread and reads a snapshot of the shared vec each iteration.
+KubeRift uses a **single tokio multi-thread runtime**. Each resource kind has an independent watcher task that streams updates into a shared `Arc<Mutex<Vec<K8sItem>>>`. The TUI loop runs synchronously on the main thread and reads a snapshot of the shared vec each iteration.
 
 Tokio features used: `rt-multi-thread`, `macros`, `time`.
 

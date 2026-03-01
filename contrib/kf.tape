@@ -1,8 +1,8 @@
-# KubeFuzz demo recording
+# KubeRift demo recording
 # Requires: vhs (https://github.com/charmbracelet/vhs)
 #
 # Prerequisites:
-#   1. A kind cluster named "kind-kubefuzz-dev" with test workloads
+#   1. A kind cluster named "kind-kuberift-dev" with test workloads
 #      (see docs/TESTING.md for the full test cluster setup)
 #   2. kf binary on PATH: export PATH="$PWD/target/release:$PATH"
 #
@@ -13,6 +13,7 @@
 #
 # Output: docs/demo.gif
 
+Output docs/demo.mp4
 Output docs/demo.gif
 
 Set Shell "bash"
@@ -21,10 +22,11 @@ Set Width 1200
 Set Height 700
 Set Theme "Dracula"
 Set TypingSpeed 80ms
+Set Framerate 60
 Set Padding 10
 
 # ── Open kf against the dev cluster ──────────────────────────────────────────
-Type "kf --context kind-kubefuzz-dev"
+Type "kf --context kind-kuberift-dev"
 Enter
 Sleep 3s
 
@@ -52,7 +54,7 @@ Sleep 500ms
 # ── Clear and filter by namespace ────────────────────────────────────────────
 Escape
 Sleep 200ms
-Type "kf -n testbed --context kind-kubefuzz-dev"
+Type "kf -n testbed --context kind-kuberift-dev"
 Enter
 Sleep 2500ms
 Escape

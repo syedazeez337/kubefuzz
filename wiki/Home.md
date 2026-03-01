@@ -1,10 +1,10 @@
-# KubeFuzz — Wiki
+# KubeRift — Wiki
 
 > Fuzzy-first interactive Kubernetes resource navigator
 
 `kf` lets you fuzzy-search every resource across every namespace in your cluster from a single terminal window. Select one or many, then describe, exec into a shell, tail logs, delete, port-forward, restart, or dump YAML — all without typing a single `kubectl` command.
 
-![demo](https://raw.githubusercontent.com/syedazeez337/kubefuzz/master/docs/demo.gif)
+![demo](https://raw.githubusercontent.com/syedazeez337/kuberift/master/docs/demo.gif)
 
 ---
 

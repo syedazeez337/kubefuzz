@@ -10,14 +10,14 @@ use anyhow::Result;
 use clap::{CommandFactory, Parser};
 use clap_complete::generate;
 use crossterm::event::{KeyCode, KeyModifiers};
-use kubefuzz::actions::{
+use kuberift::actions::{
     action_delete, action_describe, action_exec, action_logs, action_portforward,
     action_rollout_restart, action_yaml, install_preview_toggle, preview_toggle_path, runtime_dir,
 };
-use kubefuzz::cli::Args;
-use kubefuzz::items::{K8sItem, ResourceKind};
+use kuberift::cli::Args;
+use kuberift::items::{K8sItem, ResourceKind};
 #[allow(unused_imports)]
-use kubefuzz::k8s::{
+use kuberift::k8s::{
     client::{
         build_client_for_context, current_context, list_contexts, load_last_context,
         save_last_context,
@@ -55,7 +55,7 @@ async fn main() -> Result<()> {
         .is_err()
     {
         eprintln!(
-            "[kubefuzz] warning: kubectl not found in PATH.\n\
+            "[kuberift] warning: kubectl not found in PATH.\n\
              Preview and all actions (logs, exec, delete, …) will be unavailable.\n\
              Install kubectl: https://kubernetes.io/docs/tasks/tools/"
         );
@@ -118,13 +118,13 @@ fn run_single_context(
                     )
                     .await
                     {
-                        eprintln!("\n[kubefuzz] {e}");
+                        eprintln!("\n[kuberift] {e}");
                     }
                 }
                 Err(e) => {
-                    eprintln!("[kubefuzz] No cluster ({e}). Showing demo data.");
+                    eprintln!("[kuberift] No cluster ({e}). Showing demo data.");
                     if tx_k8s.send(demo_items()).is_err() {
-                        eprintln!("[kubefuzz] warning: failed to send demo items to skim");
+                        eprintln!("[kuberift] warning: failed to send demo items to skim");
                     }
                 }
             }
@@ -162,7 +162,7 @@ fn run_single_context(
 fn run_all_contexts(args: &Args, kinds: &[ResourceKind], kind_label: &str) -> Result<()> {
     let contexts = list_contexts();
     if contexts.is_empty() {
-        eprintln!("[kubefuzz] No contexts found in kubeconfig.");
+        eprintln!("[kuberift] No contexts found in kubeconfig.");
         return Ok(());
     }
 
@@ -192,11 +192,11 @@ fn run_all_contexts(args: &Args, kinds: &[ResourceKind], kind_label: &str) -> Re
                     )
                     .await
                     {
-                        eprintln!("[kubefuzz:{ctx_clone}] {e}");
+                        eprintln!("[kuberift:{ctx_clone}] {e}");
                     }
                 }
                 Err(e) => {
-                    eprintln!("[kubefuzz] Cannot connect to '{ctx_clone}': {e}");
+                    eprintln!("[kuberift] Cannot connect to '{ctx_clone}': {e}");
                 }
             }
         });
@@ -220,7 +220,7 @@ fn run_all_contexts(args: &Args, kinds: &[ResourceKind], kind_label: &str) -> Re
 fn pick_context() -> Result<Option<String>> {
     let contexts = list_contexts();
     if contexts.is_empty() {
-        eprintln!("[kubefuzz] No contexts found in kubeconfig.");
+        eprintln!("[kuberift] No contexts found in kubeconfig.");
         return Ok(None);
     }
 
@@ -231,7 +231,7 @@ fn pick_context() -> Result<Option<String>> {
             .send(vec![Arc::new(ContextItem(ctx.clone())) as Arc<dyn SkimItem>])
             .is_err()
         {
-            eprintln!("[kubefuzz] warning: failed to send context item to skim");
+            eprintln!("[kuberift] warning: failed to send context item to skim");
         }
     }
     drop(tx);
@@ -287,7 +287,7 @@ fn build_skim_options(
         .preview_window("right:50%")
         .height("60%")
         .header(format!(
-            "KubeFuzz  ctx:{ctx_label}{ns_hint}  res:{kind_label}{ro_hint}\n\
+            "KubeRift  ctx:{ctx_label}{ns_hint}  res:{kind_label}{ro_hint}\n\
              <tab> select  <enter> describe  ctrl-l logs  ctrl-e exec  \
              ctrl-d delete  ctrl-f forward  ctrl-r restart  ctrl-y yaml  \
              ctrl-p cycle-preview{ctx_hint}",
@@ -338,25 +338,25 @@ fn dispatch(output: &SkimOutput, read_only: bool) -> Result<()> {
         action_logs(&items)?;
     } else if ctrl('e') {
         if read_only {
-            eprintln!("[kubefuzz] read-only mode: exec is disabled");
+            eprintln!("[kuberift] read-only mode: exec is disabled");
         } else if let Some(item) = items.first() {
             action_exec(item)?;
         }
     } else if ctrl('d') {
         if read_only {
-            eprintln!("[kubefuzz] read-only mode: delete is disabled");
+            eprintln!("[kuberift] read-only mode: delete is disabled");
         } else {
             action_delete(&items)?;
         }
     } else if ctrl('f') {
         if read_only {
-            eprintln!("[kubefuzz] read-only mode: port-forward is disabled");
+            eprintln!("[kuberift] read-only mode: port-forward is disabled");
         } else if let Some(item) = items.first() {
             action_portforward(item)?;
         }
     } else if ctrl('r') {
         if read_only {
-            eprintln!("[kubefuzz] read-only mode: rollout-restart is disabled");
+            eprintln!("[kuberift] read-only mode: rollout-restart is disabled");
         } else {
             action_rollout_restart(&items)?;
         }

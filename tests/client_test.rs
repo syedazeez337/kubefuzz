@@ -1,8 +1,8 @@
-//! Tests for kubefuzz::k8s::client — context persistence and kubeconfig reading.
+//! Tests for kuberift::k8s::client — context persistence and kubeconfig reading.
 
 use std::sync::Mutex;
 
-use kubefuzz::k8s::client::{current_context, list_contexts, load_last_context, save_last_context};
+use kuberift::k8s::client::{current_context, list_contexts, load_last_context, save_last_context};
 
 /// Serialises tests that modify the last_context file so they don't race.
 static CTX_MUTEX: Mutex<()> = Mutex::new(());
@@ -50,11 +50,11 @@ fn save_and_load_last_context_round_trip() {
     // Preserve original so we can restore it afterward.
     let original = load_last_context();
 
-    save_last_context("kubefuzz-test-context-xyz");
+    save_last_context("kuberift-test-context-xyz");
     let loaded = load_last_context();
     assert_eq!(
         loaded,
-        Some("kubefuzz-test-context-xyz".to_string()),
+        Some("kuberift-test-context-xyz".to_string()),
         "load_last_context must return the value that was saved"
     );
 
@@ -64,7 +64,7 @@ fn save_and_load_last_context_round_trip() {
         None => {
             // Delete the file so the state is back to "no saved context".
             if let Some(dir) = dirs::config_dir() {
-                let _ = std::fs::remove_file(dir.join("kubefuzz").join("last_context"));
+                let _ = std::fs::remove_file(dir.join("kuberift").join("last_context"));
             }
         }
     }
@@ -86,7 +86,7 @@ fn save_last_context_trims_whitespace_on_reload() {
         Some(ref ctx) => save_last_context(ctx),
         None => {
             if let Some(dir) = dirs::config_dir() {
-                let _ = std::fs::remove_file(dir.join("kubefuzz").join("last_context"));
+                let _ = std::fs::remove_file(dir.join("kuberift").join("last_context"));
             }
         }
     }
@@ -102,7 +102,7 @@ fn load_last_context_does_not_panic_when_file_missing() {
 
 #[tokio::test]
 async fn build_client_invalid_kubeconfig_path_returns_error() {
-    use kubefuzz::k8s::client::build_client_for_context;
+    use kuberift::k8s::client::build_client_for_context;
     let result = build_client_for_context("any-ctx", Some("/nonexistent/kubeconfig.yaml")).await;
     assert!(
         result.is_err(),
@@ -112,9 +112,9 @@ async fn build_client_invalid_kubeconfig_path_returns_error() {
 
 #[tokio::test]
 async fn build_client_nonexistent_context_returns_error() {
-    use kubefuzz::k8s::client::build_client_for_context;
+    use kuberift::k8s::client::build_client_for_context;
     // A context name that cannot exist in any kubeconfig.
-    let result = build_client_for_context("kubefuzz-nonexistent-ctx-zzzz", None).await;
+    let result = build_client_for_context("kuberift-nonexistent-ctx-zzzz", None).await;
     assert!(
         result.is_err(),
         "build_client_for_context with unknown context must return Err"

@@ -1,4 +1,4 @@
-# KubeFuzz — Technical Architecture
+# KubeRift — Technical Architecture
 
 > **Note:** This document is derived from the actual source code. Every claim has been verified against the implementation.
 
@@ -8,7 +8,7 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                         kubefuzz (kf)                           │
+│                         kuberift (kf)                           │
 │                        CLI entry point                          │
 │                   src/main.rs + src/cli.rs                      │
 └──────────────────────────┬──────────────────────────────────────┘
@@ -82,7 +82,7 @@ OPTIONS:
 - **`build_client_for_context(context_name, kubeconfig)`** — builds a `kube::Client` for a named context. Accepts an optional path to an alternate kubeconfig file; otherwise uses `$KUBECONFIG` or `~/.kube/config`.
 - **`current_context()`** — reads the active context name from kubeconfig for display.
 - **`list_contexts()`** — returns all context names from kubeconfig, sorted alphabetically.
-- **`save_last_context(ctx)`** — persists the last-used context to `~/.config/kubefuzz/last_context`. Sets `0o700` on the directory and `0o600` on the file (Unix only).
+- **`save_last_context(ctx)`** — persists the last-used context to `~/.config/kuberift/last_context`. Sets `0o700` on the directory and `0o600` on the file (Unix only).
 - **`load_last_context()`** — restores the saved context on startup.
 
 #### `src/k8s/resources.rs`
@@ -171,7 +171,7 @@ Handles what happens after skim returns. All functions are synchronous (no `asyn
 
 ```rust
 pub fn runtime_dir() -> &'static PathBuf
-// Uses: $XDG_RUNTIME_DIR/<pid>/  or  /tmp/kubefuzz-<pid>/
+// Uses: $XDG_RUNTIME_DIR/<pid>/  or  /tmp/kuberift-<pid>/
 // Directory is created with 0o700 permissions on Unix.
 ```
 
@@ -266,7 +266,7 @@ tempfile = "3"
 ## Directory Structure
 
 ```
-kubefuzz/
+kuberift/
 ├── Cargo.toml
 ├── Cargo.lock
 ├── README.md
@@ -328,7 +328,7 @@ The published `skim 3.4.0` on crates.io has a broken build with `frizbee 0.8.2` 
 - Actions that don't make sense in bulk (exec, port-forward) use only the first selected item
 
 ### Secure Temp Files
-Preview state is stored in `$XDG_RUNTIME_DIR/<pid>/` (falls back to `/tmp/kubefuzz-<pid>/`). The per-PID subdirectory prevents symlink attacks (CWE-59 / CWE-367). Directories are created with `0o700` and files with `0o600` (Unix). The runtime dir is cleaned up on exit.
+Preview state is stored in `$XDG_RUNTIME_DIR/<pid>/` (falls back to `/tmp/kuberift-<pid>/`). The per-PID subdirectory prevents symlink attacks (CWE-59 / CWE-367). Directories are created with `0o700` and files with `0o600` (Unix). The runtime dir is cleaned up on exit.
 
 ### Read-Only Mode
 `--read-only` disables `exec`, `delete`, `port-forward`, and `rollout-restart`. `describe`, `logs`, and `yaml` remain available. The header shows `[READ-ONLY]` to communicate the constraint.

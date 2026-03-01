@@ -338,14 +338,14 @@ pub async fn watch_resources(
             };
 
             if let Err(e) = result {
-                eprintln!("\n[kubefuzz] {e}");
+                eprintln!("\n[kuberift] {e}");
             }
         }));
     }
 
     for task in tasks {
         if let Err(e) = task.await {
-            eprintln!("[kubefuzz] warning: watcher task panicked: {e}");
+            eprintln!("[kuberift] warning: watcher task panicked: {e}");
         }
     }
 
@@ -483,7 +483,7 @@ where
 
             // ── Watch error — default_backoff handles retry ───────────────────
             Err(e) => {
-                eprintln!("[kubefuzz] watch error ({}): {e}", kind.as_str());
+                eprintln!("[kuberift] watch error ({}): {e}", kind.as_str());
             }
         }
     }

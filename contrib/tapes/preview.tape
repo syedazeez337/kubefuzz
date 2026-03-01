@@ -1,6 +1,7 @@
-# KubeFuzz — preview mode cycling (describe → yaml → logs)
+# KubeRift — preview mode cycling (describe → yaml → logs)
 # Output: docs/preview.gif
 
+Output docs/preview.mp4
 Output docs/preview.gif
 
 Set Shell    "bash"
@@ -9,10 +10,11 @@ Set Width    1200
 Set Height    700
 Set Theme    "Dracula"
 Set TypingSpeed 60ms
+Set Framerate  60
 Set Padding  10
 
 # ── Open pods, navigate to the running nginx pod ──────────────────────────────
-Type "kf pods --context kind-kubefuzz-dev"
+Type "kf pods --context kind-kuberift-dev"
 Enter
 Sleep 3.5s
 

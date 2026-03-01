@@ -1,4 +1,4 @@
-# KubeFuzz — Market Research & Competitive Analysis
+# KubeRift — Market Research & Competitive Analysis
 
 > Full research conducted Feb 2026. Sources listed at bottom.
 
@@ -69,11 +69,11 @@
 - Some power users write bash scripts combining `kubectl get` with `fzf`
 - Example: `kubectl get pods | fzf | xargs kubectl describe pod`
 - Works but: fragile, no live preview, no multi-select with actions, not maintainable
-- This is the hacky workaround KubeFuzz replaces with a proper product
+- This is the hacky workaround KubeRift replaces with a proper product
 
 ---
 
-## 3. The Specific Gap KubeFuzz Fills
+## 3. The Specific Gap KubeRift Fills
 
 No tool currently offers:
 
@@ -100,7 +100,7 @@ No tool currently offers:
 
 ### Tertiary: Dev Teams
 - Teams onboarding new engineers to K8s
-- KubeFuzz's low learning curve reduces onboarding friction
+- KubeRift's low learning curve reduces onboarding friction
 
 ---
 
@@ -111,7 +111,7 @@ No tool currently offers:
 - Warp: Freemium, AI features + team collab paid
 - k9s: Fully free/open-source (no monetization — our advantage)
 
-### KubeFuzz Model
+### KubeRift Model
 ```
 Free tier (open source core):
   - Single cluster
@@ -135,7 +135,7 @@ Enterprise tier ($30/seat/month):
 ```
 
 ### Distribution
-1. `cargo install kubefuzz` — Rust ecosystem, zero-friction
+1. `cargo install kuberift` — Rust ecosystem, zero-friction
 2. Homebrew tap — macOS developers
 3. Linux package managers (apt, dnf, pacman via AUR)
 4. Nix/nixpkgs

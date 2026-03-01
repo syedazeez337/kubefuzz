@@ -1,6 +1,6 @@
 # Filtering
 
-![filter demo](https://raw.githubusercontent.com/syedazeez337/kubefuzz/master/docs/filter.gif)
+![filter demo](https://raw.githubusercontent.com/syedazeez337/kuberift/master/docs/filter.gif)
 
 kf supports three independent levels of filtering that compose freely.
 

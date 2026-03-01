@@ -9,7 +9,7 @@
 
 ## Option 1 — Pre-built binary (recommended)
 
-Download the binary for your platform from the [latest release](https://github.com/syedazeez337/kubefuzz/releases/latest), extract, and place `kf` somewhere on your `$PATH`.
+Download the binary for your platform from the [latest release](https://github.com/syedazeez337/kuberift/releases/latest), extract, and place `kf` somewhere on your `$PATH`.
 
 | Platform | File |
 |---|---|
@@ -22,7 +22,7 @@ Each archive contains the `kf` binary, shell completions (`bash`, `zsh`, `fish`)
 
 ```bash
 # Example: Linux x86_64
-curl -sL https://github.com/syedazeez337/kubefuzz/releases/latest/download/kf-x86_64-linux.tar.gz \
+curl -sL https://github.com/syedazeez337/kuberift/releases/latest/download/kf-x86_64-linux.tar.gz \
   | tar xz
 sudo mv kf /usr/local/bin/kf
 ```
@@ -32,13 +32,13 @@ sudo mv kf /usr/local/bin/kf
 ## Option 2 — Homebrew (macOS / Linux)
 
 ```bash
-brew install --formula https://raw.githubusercontent.com/syedazeez337/kubefuzz/master/contrib/kf.rb
+brew install --formula https://raw.githubusercontent.com/syedazeez337/kuberift/master/contrib/kf.rb
 ```
 
-Or via the tap (once a `homebrew-kubefuzz` tap repo exists):
+Or via the tap (once a `homebrew-kuberift` tap repo exists):
 
 ```bash
-brew tap syedazeez337/kubefuzz https://github.com/syedazeez337/kubefuzz
+brew tap syedazeez337/kuberift https://github.com/syedazeez337/kuberift
 brew install kf
 ```
 
@@ -48,11 +48,11 @@ brew install kf
 
 ```bash
 # Using an AUR helper
-yay -S kubefuzz
+yay -S kuberift
 
 # Manually from contrib/PKGBUILD
-git clone https://github.com/syedazeez337/kubefuzz.git
-cd kubefuzz
+git clone https://github.com/syedazeez337/kuberift.git
+cd kuberift
 makepkg -si contrib/PKGBUILD
 ```
 
@@ -64,8 +64,8 @@ makepkg -si contrib/PKGBUILD
 # Requires Rust stable toolchain
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 
-git clone https://github.com/syedazeez337/kubefuzz.git
-cd kubefuzz
+git clone https://github.com/syedazeez337/kuberift.git
+cd kuberift
 cargo build --release
 sudo mv target/release/kf /usr/local/bin/kf
 ```
@@ -78,7 +78,7 @@ Install the Linux x86\_64 binary inside your WSL environment. All kf features wo
 
 ```bash
 # Inside WSL
-curl -sL https://github.com/syedazeez337/kubefuzz/releases/latest/download/kf-x86_64-linux.tar.gz \
+curl -sL https://github.com/syedazeez337/kuberift/releases/latest/download/kf-x86_64-linux.tar.gz \
   | tar xz
 sudo mv kf /usr/local/bin/kf
 ```

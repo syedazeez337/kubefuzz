@@ -1,6 +1,7 @@
-# KubeFuzz — multi-cluster: --all-contexts and ctrl-x context switching
+# KubeRift — multi-cluster: --all-contexts and ctrl-x context switching
 # Output: docs/multicluster.gif
 
+Output docs/multicluster.mp4
 Output docs/multicluster.gif
 
 Set Shell    "bash"
@@ -9,6 +10,7 @@ Set Width    1200
 Set Height    700
 Set Theme    "Dracula"
 Set TypingSpeed 60ms
+Set Framerate  60
 Set Padding  10
 
 # ── All-contexts: stream from every cluster simultaneously ────────────────────
@@ -31,7 +33,7 @@ Escape
 Sleep 400ms
 
 # ── Interactive context switching with ctrl-x ─────────────────────────────────
-Type "kf --context kind-kubefuzz-dev"
+Type "kf --context kind-kuberift-dev"
 Enter
 Sleep 3.5s
 

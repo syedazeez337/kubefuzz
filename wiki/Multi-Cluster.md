@@ -1,6 +1,6 @@
 # Multi-Cluster
 
-![multicluster demo](https://raw.githubusercontent.com/syedazeez337/kubefuzz/master/docs/multicluster.gif)
+![multicluster demo](https://raw.githubusercontent.com/syedazeez337/kuberift/master/docs/multicluster.gif)
 
 kf has two multi-cluster modes: watching all contexts simultaneously and switching interactively.
 
@@ -32,7 +32,7 @@ All actions — describe, logs, exec, delete, port-forward, rollout restart — 
 
 Press `ctrl-x` while kf is running to open a secondary fuzzy picker showing all contexts in your kubeconfig. Select one and kf restarts the resource stream from that cluster without you having to quit and relaunch.
 
-The selected context is saved to `~/.config/kubefuzz/last_context` and restored automatically on the next launch.
+The selected context is saved to `~/.config/kuberift/last_context` and restored automatically on the next launch.
 
 ---
 
@@ -52,7 +52,7 @@ kf pods --context staging --namespace payments
 kf remembers the last context you switched to via `ctrl-x` and restores it on the next launch. To reset to the kubeconfig default, delete the saved file:
 
 ```bash
-rm ~/.config/kubefuzz/last_context
+rm ~/.config/kuberift/last_context
 ```
 
 ---

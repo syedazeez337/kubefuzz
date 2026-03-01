@@ -1,6 +1,7 @@
-# KubeFuzz — main showcase
+# KubeRift — main showcase
 # Output: docs/demo.gif
 
+Output docs/demo.mp4
 Output docs/demo.gif
 
 Set Shell    "bash"
@@ -9,10 +10,11 @@ Set Width    1200
 Set Height    700
 Set Theme    "Dracula"
 Set TypingSpeed 60ms
+Set Framerate  60
 Set Padding  10
 
 # ── Launch kf ─────────────────────────────────────────────────────────────────
-Type "kf --context kind-kubefuzz-dev"
+Type "kf --context kind-kuberift-dev"
 Enter
 Sleep 4s
 
@@ -52,7 +54,7 @@ Sleep 1s
 Escape
 Sleep 400ms
 
-Type "kf -n testbed --context kind-kubefuzz-dev"
+Type "kf -n testbed --context kind-kuberift-dev"
 Enter
 Sleep 3.5s
 

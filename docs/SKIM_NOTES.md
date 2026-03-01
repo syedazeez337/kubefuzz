@@ -1,6 +1,6 @@
 # Skim Library — Integration Notes
 
-How skim works as a library and exactly how KubeFuzz uses it.
+How skim works as a library and exactly how KubeRift uses it.
 
 ---
 
@@ -60,7 +60,7 @@ let options = SkimOptionsBuilder::default()
         "ctrl-l:execute-silent(echo logs {1})",
         "ctrl-e:execute(echo exec {1})",
     ])
-    .header(Some("KubeFuzz — <tab> multi-select  ctrl-l logs  ctrl-e exec"))
+    .header(Some("KubeRift — <tab> multi-select  ctrl-l logs  ctrl-e exec"))
     .prompt(Some("❯ "))
     .build()
     .unwrap();
@@ -179,7 +179,7 @@ toggle-select          # Toggle current item in multi-select
 select-all             # Select all
 ```
 
-For KubeFuzz, we detect which key ended the session via `output.final_key` and dispatch accordingly — this avoids spawning subprocesses from skim's bind, keeping everything in Rust.
+For KubeRift, we detect which key ended the session via `output.final_key` and dispatch accordingly — this avoids spawning subprocesses from skim's bind, keeping everything in Rust.
 
 ```rust
 match output.final_key {
@@ -246,7 +246,7 @@ fn main() {
         .multi(true)
         .preview(Some(""))
         .height(Some("50%"))
-        .header(Some("KubeFuzz dev — press Enter to select, Esc to quit"))
+        .header(Some("KubeRift dev — press Enter to select, Esc to quit"))
         .build()
         .unwrap();
 

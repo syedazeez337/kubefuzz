@@ -1,17 +1,17 @@
 [package]
-name = "kubefuzz"
+name = "kuberift"
 version = "0.1.2"
 edition = "2021"
 rust-version = "1.82"
 description = "A fuzzy-first interactive Kubernetes resource navigator"
 license = "MIT"
-repository = "https://github.com/syedazeez337/kubefuzz"
-homepage = "https://github.com/syedazeez337/kubefuzz"
+repository = "https://github.com/syedazeez337/kuberift"
+homepage = "https://github.com/syedazeez337/kuberift"
 keywords = ["kubernetes", "kubectl", "tui", "fuzzy", "k8s"]
 categories = ["command-line-utilities", "development-tools"]
 
 [lib]
-name = "kubefuzz"
+name = "kuberift"
 path = "src/lib.rs"
 
 [[bin]]

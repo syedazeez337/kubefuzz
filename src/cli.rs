@@ -81,7 +81,7 @@ impl Args {
             "cj" | "cronjob" | "cronjobs" => vec![ResourceKind::CronJob],
             _ => {
                 eprintln!(
-                    "[kubefuzz] Unknown resource type '{s}'. Showing all resources.\n\
+                    "[kuberift] Unknown resource type '{s}'. Showing all resources.\n\
                      Supported: pods, svc, deploy, sts, ds, cm, secret, ing, node, ns, pv, pvc, job, cronjob"
                 );
                 return None;

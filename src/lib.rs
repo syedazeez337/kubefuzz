@@ -1,4 +1,4 @@
-//! kubefuzz library — exposes all internal modules so integration tests in tests/ can import them.
+//! kuberift library — exposes all internal modules so integration tests in tests/ can import them.
 //! This is a CLI tool; the lib target exists solely to give the test suite access to internal
 //! types. `must_use_candidate` and `missing_errors_doc` are suppressed because these are
 //! implementation details, not a published library API.

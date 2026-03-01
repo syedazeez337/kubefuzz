@@ -1,6 +1,6 @@
-//! Tests for kubefuzz::items — StatusHealth, ResourceKind, K8sItem, and helpers.
+//! Tests for kuberift::items — StatusHealth, ResourceKind, K8sItem, and helpers.
 
-use kubefuzz::items::{context_color, truncate_name, K8sItem, ResourceKind, StatusHealth};
+use kuberift::items::{context_color, truncate_name, K8sItem, ResourceKind, StatusHealth};
 use ratatui::style::Color;
 
 // ── Helper ────────────────────────────────────────────────────────────────────

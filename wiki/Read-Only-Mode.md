@@ -16,10 +16,10 @@ The header shows `[READ-ONLY]` so the mode is always visible.
 
 | Key | Blocked action | Message shown |
 |---|---|---|
-| `ctrl-e` | exec into container | `[kubefuzz] read-only mode: exec is disabled` |
-| `ctrl-d` | delete resources | `[kubefuzz] read-only mode: delete is disabled` |
-| `ctrl-f` | port-forward | `[kubefuzz] read-only mode: port-forward is disabled` |
-| `ctrl-r` | rollout restart | `[kubefuzz] read-only mode: rollout-restart is disabled` |
+| `ctrl-e` | exec into container | `[kuberift] read-only mode: exec is disabled` |
+| `ctrl-d` | delete resources | `[kuberift] read-only mode: delete is disabled` |
+| `ctrl-f` | port-forward | `[kuberift] read-only mode: port-forward is disabled` |
+| `ctrl-r` | rollout restart | `[kuberift] read-only mode: rollout-restart is disabled` |
 
 kf prints the message and immediately relaunches the TUI — no state is changed.
 

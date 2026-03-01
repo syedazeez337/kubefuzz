@@ -1,4 +1,4 @@
-//! Tests for kubefuzz::actions — runtime dir, preview toggle, and action guard logic.
+//! Tests for kuberift::actions — runtime dir, preview toggle, and action guard logic.
 //!
 //! Tests that require executing `kubectl` use a fake binary placed at the front of PATH.
 //! A process-wide Mutex serialises all PATH-mutating tests so they cannot race.
@@ -9,12 +9,12 @@
 
 use std::sync::Mutex;
 
-use kubefuzz::actions::{
+use kuberift::actions::{
     action_delete, action_describe, action_exec, action_logs, action_portforward,
     action_rollout_restart, action_yaml, current_preview_mode, install_preview_toggle,
     preview_toggle_path, runtime_dir,
 };
-use kubefuzz::items::{K8sItem, ResourceKind};
+use kuberift::items::{K8sItem, ResourceKind};
 
 // ── Test item helpers ─────────────────────────────────────────────────────────
 

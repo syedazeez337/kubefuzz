@@ -1564,7 +1564,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "kubefuzz"
+name = "kuberift"
 version = "0.1.2"
 dependencies = [
  "anyhow",

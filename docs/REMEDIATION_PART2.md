@@ -1,4 +1,4 @@
-# KubeFuzz — Remediation Blueprint (Part 2: Tests, Features, Bug Fixes)
+# KubeRift — Remediation Blueprint (Part 2: Tests, Features, Bug Fixes)
 
 > **STATUS: COMPLETED** — All items in this document were implemented in commits `ad6f0d6`, `f00caba`, and `bd3de1a` (2026-02-23 to 2026-02-25). This file is kept as a historical record.
 
@@ -580,13 +580,13 @@ pub read_only: bool,
 **File:** `src/main.rs` `dispatch()` — wrap destructive actions:
 ```rust
 if ctrl('d') {
-    if read_only { eprintln!("[kubefuzz] delete disabled in read-only mode"); }
+    if read_only { eprintln!("[kuberift] delete disabled in read-only mode"); }
     else { action_delete(&items)?; }
 } else if ctrl('e') {
-    if read_only { eprintln!("[kubefuzz] exec disabled in read-only mode"); }
+    if read_only { eprintln!("[kuberift] exec disabled in read-only mode"); }
     else if let Some(item) = items.first() { action_exec(item)?; }
 } else if ctrl('r') {
-    if read_only { eprintln!("[kubefuzz] restart disabled in read-only mode"); }
+    if read_only { eprintln!("[kuberift] restart disabled in read-only mode"); }
     else { action_rollout_restart(&items)?; }
 }
 // ctrl-l (logs), ctrl-y (yaml), enter (describe) remain available
@@ -637,7 +637,7 @@ The header is built once with `preview_mode_label()`. It never updates when ctrl
 
 ```rust
 .header(format!(
-    "KubeFuzz  ctx:{ctx_label}  res:{kind_label}\n\
+    "KubeRift  ctx:{ctx_label}  res:{kind_label}\n\
      <tab> select  <enter> describe  ctrl-l logs  ctrl-e exec  \
      ctrl-d delete  ctrl-f forward  ctrl-r restart  ctrl-y yaml  \
      ctrl-p cycle-preview{ctx_hint}",
@@ -703,10 +703,10 @@ This makes the navigator truly interactive — users perform an action and retur
 ## Installation
 
 ```bash
-# Clone both repos (kubefuzz depends on a patched skim)
+# Clone both repos (kuberift depends on a patched skim)
 git clone https://github.com/syedazeez337/skim.git
-git clone https://github.com/syedazeez337/kubefuzz.git
-cd kubefuzz
+git clone https://github.com/syedazeez337/kuberift.git
+cd kuberift
 cargo build --release
 ```
 

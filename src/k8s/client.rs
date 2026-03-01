@@ -45,13 +45,13 @@ pub fn list_contexts() -> Vec<String> {
     ctxs
 }
 
-/// Persist the last-used context to `~/.config/kubefuzz/last_context`.
+/// Persist the last-used context to `~/.config/kuberift/last_context`.
 /// Sets 0o700 on the directory and 0o600 on the file on Unix.
 pub fn save_last_context(context: &str) {
     if let Some(dir) = dirs::config_dir() {
-        let dir = dir.join("kubefuzz");
+        let dir = dir.join("kuberift");
         if let Err(e) = std::fs::create_dir_all(&dir) {
-            eprintln!("[kubefuzz] warning: cannot create config dir: {e}");
+            eprintln!("[kuberift] warning: cannot create config dir: {e}");
             return;
         }
         #[cfg(unix)]
@@ -61,7 +61,7 @@ pub fn save_last_context(context: &str) {
         }
         let path = dir.join("last_context");
         if let Err(e) = std::fs::write(&path, context) {
-            eprintln!("[kubefuzz] warning: cannot save context: {e}");
+            eprintln!("[kuberift] warning: cannot save context: {e}");
             return;
         }
         #[cfg(unix)]
@@ -72,10 +72,10 @@ pub fn save_last_context(context: &str) {
     }
 }
 
-/// Load the last-used context from `~/.config/kubefuzz/last_context`.
+/// Load the last-used context from `~/.config/kuberift/last_context`.
 pub fn load_last_context() -> Option<String> {
     dirs::config_dir()
-        .map(|d| d.join("kubefuzz").join("last_context"))
+        .map(|d| d.join("kuberift").join("last_context"))
         .and_then(|p| std::fs::read_to_string(p).ok())
         .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty())

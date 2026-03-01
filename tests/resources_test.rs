@@ -1,4 +1,4 @@
-//! Tests for kubefuzz::k8s::resources — all status extractors, resource_age, status_priority, ALL_KINDS.
+//! Tests for kuberift::k8s::resources — all status extractors, resource_age, status_priority, ALL_KINDS.
 
 use k8s_openapi::{
     api::{
@@ -19,8 +19,8 @@ use k8s_openapi::{
     },
     apimachinery::pkg::apis::meta::v1::{ObjectMeta, Time},
 };
-use kubefuzz::items::ResourceKind;
-use kubefuzz::k8s::resources::{
+use kuberift::items::ResourceKind;
+use kuberift::k8s::resources::{
     cronjob_status, daemonset_status, deploy_status, ingress_status, job_status, namespace_status,
     node_status, pod_status, pv_status, pvc_status, resource_age, secret_status, service_status,
     statefulset_status, status_priority, ALL_KINDS,

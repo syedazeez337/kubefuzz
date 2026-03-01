@@ -1,6 +1,6 @@
-# Contributing to KubeFuzz
+# Contributing to KubeRift
 
-KubeFuzz is in early development. The best way to contribute right now is architectural feedback, testing with real clusters, and picking up roadmap items.
+KubeRift is in early development. The best way to contribute right now is architectural feedback, testing with real clusters, and picking up roadmap items.
 
 ---
 
@@ -8,8 +8,8 @@ KubeFuzz is in early development. The best way to contribute right now is archit
 
 ```bash
 # 1. Clone
-git clone https://github.com/syedazeez337/kubefuzz.git
-cd kubefuzz
+git clone https://github.com/syedazeez337/kuberift.git
+cd kuberift
 
 # 2. Install Rust (stable toolchain)
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh

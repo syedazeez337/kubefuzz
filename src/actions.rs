@@ -20,9 +20,9 @@ pub fn runtime_dir() -> &'static PathBuf {
         let base = dirs::runtime_dir()
             .or_else(|| std::env::var_os("XDG_RUNTIME_DIR").map(PathBuf::from))
             .unwrap_or_else(std::env::temp_dir);
-        let dir = base.join(format!("kubefuzz-{}", std::process::id()));
+        let dir = base.join(format!("kuberift-{}", std::process::id()));
         if let Err(e) = std::fs::create_dir_all(&dir) {
-            eprintln!("[kubefuzz] warning: cannot create runtime dir: {e}");
+            eprintln!("[kuberift] warning: cannot create runtime dir: {e}");
         }
         #[cfg(unix)]
         {
@@ -55,7 +55,7 @@ pub fn install_preview_toggle() {
         mode = mode_path.display()
     );
     if let Err(e) = std::fs::write(&toggle_path, &script) {
-        eprintln!("[kubefuzz] warning: cannot write preview toggle script: {e}");
+        eprintln!("[kuberift] warning: cannot write preview toggle script: {e}");
         return;
     }
     #[cfg(unix)]
@@ -64,7 +64,7 @@ pub fn install_preview_toggle() {
         let _ = std::fs::set_permissions(&toggle_path, std::fs::Permissions::from_mode(0o700));
     }
     if let Err(e) = std::fs::write(&mode_path, "0") {
-        eprintln!("[kubefuzz] warning: cannot write preview mode file: {e}");
+        eprintln!("[kuberift] warning: cannot write preview mode file: {e}");
     }
 }
 
@@ -95,7 +95,7 @@ pub fn action_logs(items: &[&K8sItem]) -> Result<()> {
     for item in items {
         if !matches!(item.kind(), ResourceKind::Pod) {
             eprintln!(
-                "[kubefuzz] logs only available for pods (got {})",
+                "[kuberift] logs only available for pods (got {})",
                 item.kind().as_str()
             );
             continue;
@@ -108,7 +108,7 @@ pub fn action_logs(items: &[&K8sItem]) -> Result<()> {
         args.extend_from_slice(&["--", item.name()]);
         let status = kubectl(item).args(&args).status()?;
         if !status.success() {
-            eprintln!("[kubefuzz] kubectl logs exited with {status}");
+            eprintln!("[kuberift] kubectl logs exited with {status}");
         }
     }
     Ok(())
@@ -118,7 +118,7 @@ pub fn action_logs(items: &[&K8sItem]) -> Result<()> {
 
 pub fn action_exec(item: &K8sItem) -> Result<()> {
     if !matches!(item.kind(), ResourceKind::Pod) {
-        eprintln!("[kubefuzz] exec only available for pods");
+        eprintln!("[kuberift] exec only available for pods");
         return Ok(());
     }
     println!("Dropping into shell: {}/{}", item.namespace(), item.name());
@@ -133,7 +133,7 @@ pub fn action_exec(item: &K8sItem) -> Result<()> {
             return Ok(());
         }
     }
-    eprintln!("[kubefuzz] exec failed for {}", item.name());
+    eprintln!("[kuberift] exec failed for {}", item.name());
     Ok(())
 }
 
@@ -165,7 +165,7 @@ pub fn action_delete(items: &[&K8sItem]) -> Result<()> {
     }
 
     if count > 10 {
-        eprintln!("[kubefuzz] ⚠ WARNING: You are about to delete {count} resources.");
+        eprintln!("[kuberift] ⚠ WARNING: You are about to delete {count} resources.");
         print!("Type 'yes' (not just 'y') to confirm bulk delete: ");
         io::stdout().flush()?;
         let mut confirm = String::new();
@@ -227,7 +227,7 @@ fn read_port(prompt: &str, default: Option<u16>) -> Result<Option<u16>> {
         anyhow::bail!("Port 0 is not valid");
     }
     if port < 1024 {
-        eprintln!("[kubefuzz] warning: port {port} is privileged (may require root/admin)");
+        eprintln!("[kuberift] warning: port {port} is privileged (may require root/admin)");
     }
     Ok(Some(port))
 }
@@ -235,7 +235,7 @@ fn read_port(prompt: &str, default: Option<u16>) -> Result<Option<u16>> {
 pub fn action_portforward(item: &K8sItem) -> Result<()> {
     if !matches!(item.kind(), ResourceKind::Pod | ResourceKind::Service) {
         eprintln!(
-            "[kubefuzz] port-forward only works with pods and services (got {})",
+            "[kuberift] port-forward only works with pods and services (got {})",
             item.kind().as_str()
         );
         return Ok(());
@@ -261,7 +261,7 @@ pub fn action_portforward(item: &K8sItem) -> Result<()> {
     println!("Forwarding localhost:{local} → {target} port {remote}  (Ctrl-C to stop)");
     let status = kubectl(item).args(&args).status()?;
     if !status.success() {
-        eprintln!("[kubefuzz] port-forward exited with {status}");
+        eprintln!("[kuberift] port-forward exited with {status}");
     }
     Ok(())
 }
@@ -278,7 +278,7 @@ pub fn action_rollout_restart(items: &[&K8sItem]) -> Result<()> {
     for item in items {
         if !RESTARTABLE.contains(&item.kind()) {
             eprintln!(
-                "[kubefuzz] rollout restart only works with deploy/sts/ds (got {})",
+                "[kuberift] rollout restart only works with deploy/sts/ds (got {})",
                 item.kind().as_str()
             );
             continue;
@@ -322,7 +322,7 @@ pub fn action_yaml(items: &[&K8sItem]) -> Result<()> {
             print!("{}", String::from_utf8_lossy(&out.stdout));
         } else {
             eprintln!(
-                "[kubefuzz] kubectl get yaml failed: {}",
+                "[kuberift] kubectl get yaml failed: {}",
                 String::from_utf8_lossy(&out.stderr).trim()
             );
         }
