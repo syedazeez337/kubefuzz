@@ -733,11 +733,11 @@ Namespace and context flags appear \emph{before} \code{--} because kubectl requi
 
 \subsection{Action Details}
 
-\subsubsection{Describe — \kbd{Enter}}
+\subsubsection{Describe — \texttt{Enter}}
 
 Runs \code{kubectl describe <kind> <name>} for each selected item. Works on all resource types. Output printed to the terminal; skim relaunches afterward.
 
-\subsubsection{Logs — \kbd{Ctrl-L}}
+\subsubsection{Logs — \texttt{Ctrl-L}}
 
 \begin{lstlisting}
 kubectl logs --tail=200 -n <namespace> -- <pod-name>
@@ -745,7 +745,7 @@ kubectl logs --tail=200 -n <namespace> -- <pod-name>
 
 Non-pod items are silently skipped with a warning. Multi-select iterates all selected pods sequentially.
 
-\subsubsection{Exec — \kbd{Ctrl-E} (single item)}
+\subsubsection{Exec — \texttt{Ctrl-E} (single item)}
 
 \begin{lstlisting}
 kubectl exec -it <pod> -n <namespace> -- /bin/sh
@@ -753,7 +753,7 @@ kubectl exec -it <pod> -n <namespace> -- /bin/sh
 
 Opens an interactive shell with a TTY. Tries \code{/bin/sh} first; falls back to \code{/bin/bash} if the container doesn't have \code{sh}. Returns when the user types \code{exit} or presses \kbd{Ctrl-D}. Disabled in \code{--read-only} mode.
 
-\subsubsection{Delete — \kbd{Ctrl-D}}
+\subsubsection{Delete — \texttt{Ctrl-D}}
 
 \begin{lstlisting}
 kubectl delete <kind> -n <namespace> -- <name>
@@ -769,7 +769,7 @@ kubectl delete <kind> -n <namespace> -- <name>
 
 Prints \code{✓ deleted pod/name} or \code{✗ delete failed ...} per item. Disabled in read-only mode.
 
-\subsubsection{Port-Forward — \kbd{Ctrl-F} (single item)}
+\subsubsection{Port-Forward — \texttt{Ctrl-F} (single item)}
 
 Applies to pods and services only. Prompts interactively:
 
@@ -785,7 +785,7 @@ kubectl port-forward pod/<name> <local>:<remote> -n <namespace>
 
 Blocks until \kbd{Ctrl-C}. Prints \code{Forwarding localhost:N → pod/name port M  (Ctrl-C to stop)} before blocking. Disabled in read-only mode.
 
-\subsubsection{Rollout Restart — \kbd{Ctrl-R}}
+\subsubsection{Rollout Restart — \texttt{Ctrl-R}}
 
 Applies to Deployments, StatefulSets, and DaemonSets. Other kinds are warned and skipped.
 
@@ -796,7 +796,7 @@ kubectl rollout status  deploy/<name> -n <namespace>
 
 Tracks rollout completion; output is live-streamed to the terminal. Disabled in read-only mode.
 
-\subsubsection{Print YAML — \kbd{Ctrl-Y}}
+\subsubsection{Print YAML — \texttt{Ctrl-Y}}
 
 \begin{lstlisting}
 kubectl get <kind> -o yaml -n <namespace> -- <name>
