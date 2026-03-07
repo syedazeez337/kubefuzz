@@ -17,6 +17,7 @@ fn args_with(resource: &str) -> Args {
         kubeconfig: None,
         completions: None,
         mangen: false,
+        no_crds: false,
     }
 }
 
@@ -31,6 +32,7 @@ fn no_resource_args() -> Args {
         kubeconfig: None,
         completions: None,
         mangen: false,
+        no_crds: false,
     }
 }
 
@@ -256,10 +258,17 @@ fn filter_cronjob_aliases() {
 // ── Unknown alias falls back to None ─────────────────────────────────────────
 
 #[test]
-fn filter_unknown_alias_returns_none() {
-    assert!(args_with("unknowntype").resource_filter().is_none());
-    assert!(args_with("replicaset").resource_filter().is_none());
-    assert!(args_with("hpa").resource_filter().is_none());
+fn filter_unknown_alias_returns_custom() {
+    for alias in &["unknowntype", "replicaset", "hpa", "certificates"] {
+        let kinds = args_with(alias)
+            .resource_filter()
+            .unwrap_or_else(|| panic!("alias '{alias}' should resolve to Custom"));
+        assert_eq!(
+            kinds,
+            vec![ResourceKind::Custom(alias.to_lowercase())],
+            "unknown alias '{alias}' should map to Custom"
+        );
+    }
 }
 
 // ── Case-insensitive matching ─────────────────────────────────────────────────

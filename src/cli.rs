@@ -4,6 +4,7 @@ use clap_complete::Shell;
 use crate::config::Config;
 use crate::items::ResourceKind;
 
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Parser, Debug)]
 #[command(
     name = "kf",
@@ -55,6 +56,11 @@ pub struct Args {
     /// Example: `kf --mangen | gzip > /usr/share/man/man1/kf.1.gz`
     #[arg(long, hide = true)]
     pub mangen: bool,
+
+    /// Disable automatic discovery and watching of CRDs (Custom Resource Definitions).
+    /// When set, only built-in resource types (pods, deploys, etc.) are shown.
+    #[arg(long)]
+    pub no_crds: bool,
 }
 
 impl Args {
@@ -99,11 +105,9 @@ impl Args {
             "job" | "jobs" => vec![ResourceKind::Job],
             "cj" | "cronjob" | "cronjobs" => vec![ResourceKind::CronJob],
             _ => {
-                eprintln!(
-                    "[kuberift] Unknown resource type '{s}'. Showing all resources.\n\
-                     Supported: pods, svc, deploy, sts, ds, cm, secret, ing, node, ns, pv, pvc, job, cronjob"
-                );
-                return None;
+                // Not a built-in resource — treat as a CRD kind/plural to match
+                // against discovered API resources at runtime.
+                vec![ResourceKind::Custom(s)]
             }
         };
         Some(kinds)

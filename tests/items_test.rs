@@ -255,7 +255,7 @@ fn k8s_item_getters_round_trip() {
         "30d",
         "prod",
     );
-    assert_eq!(item.kind(), ResourceKind::Service);
+    assert_eq!(*item.kind(), ResourceKind::Service);
     assert_eq!(item.namespace(), "kube-system");
     assert_eq!(item.name(), "kube-dns");
     assert_eq!(item.status(), "ClusterIP");

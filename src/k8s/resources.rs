@@ -33,6 +33,7 @@ use std::{
 use tokio::sync::Notify;
 
 use crate::items::{ItemState, K8sItem, ResourceKind};
+use crate::k8s::discovery::{dynamic_status, DiscoveredCrd};
 
 /// All resource kinds to watch when no filter is given.
 pub const ALL_KINDS: &[ResourceKind] = &[
@@ -63,11 +64,12 @@ pub async fn watch_resources(
     client: Client,
     tx: SkimItemSender,
     kinds: &[ResourceKind],
+    crds: &[DiscoveredCrd],
     context: &str,
     namespace: Option<&str>,
     label_selector: Option<&str>,
 ) -> Result<()> {
-    let total_watchers = kinds.len();
+    let total_watchers = kinds.len() + crds.len();
     let global_init: Arc<Mutex<Vec<K8sItem>>> = Arc::new(Mutex::new(Vec::new()));
     let done_count: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
     let all_init_done: Arc<Notify> = Arc::new(Notify::new());
@@ -103,7 +105,7 @@ pub async fn watch_resources(
     for kind in kinds {
         let c = client.clone();
         let t = tx.clone();
-        let k = *kind;
+        let k = kind.clone();
         let ctx = context.to_string();
         let ns = namespace.map(str::to_string);
         let ls = label_selector.map(str::to_string);
@@ -339,9 +341,39 @@ pub async fn watch_resources(
                     )
                     .await
                 }
+                ResourceKind::Custom(_) => {
+                    // CRDs are handled via watch_dynamic, not watch_typed.
+                    Ok(())
+                }
             };
 
             if let Err(e) = result {
+                eprintln!("\n[kuberift] {e}");
+            }
+        }));
+    }
+
+    // Spawn dynamic watchers for each discovered CRD.
+    for crd in crds {
+        let c = client.clone();
+        let t = tx.clone();
+        let ctx = context.to_string();
+        let ns = namespace.map(str::to_string);
+        let ls = label_selector.map(str::to_string);
+        let gi = global_init.clone();
+        let dc = done_count.clone();
+        let aid = all_init_done.clone();
+        let kind = ResourceKind::Custom(crd.plural.clone());
+        let ar = crd.api_resource.clone();
+        let namespaced = crd.namespaced;
+
+        tasks.push(tokio::spawn(async move {
+            if let Err(e) = watch_dynamic(
+                c, t, kind, ar, namespaced, dynamic_status, ctx, ns, ls, gi, dc,
+                total_watchers, aid,
+            )
+            .await
+            {
                 eprintln!("\n[kuberift] {e}");
             }
         }));
@@ -389,6 +421,59 @@ where
     F: Fn(&T) -> String,
 {
     let api: Api<T> = Api::all(client);
+    watch_stream(
+        api, tx, kind, status_fn, context, namespace, label_selector, global_init, done_count,
+        total_watchers, all_init_done,
+    )
+    .await
+}
+
+/// Watch a CRD/dynamic resource using `DynamicObject`.
+#[allow(clippy::too_many_arguments)]
+pub async fn watch_dynamic(
+    client: Client,
+    tx: SkimItemSender,
+    kind: ResourceKind,
+    api_resource: kube::discovery::ApiResource,
+    namespaced: bool,
+    status_fn: fn(&kube::api::DynamicObject) -> String,
+    context: String,
+    namespace: Option<String>,
+    label_selector: Option<String>,
+    global_init: Arc<Mutex<Vec<K8sItem>>>,
+    done_count: Arc<AtomicUsize>,
+    total_watchers: usize,
+    all_init_done: Arc<Notify>,
+) -> Result<()> {
+    let api: Api<kube::api::DynamicObject> = Api::all_with(client, &api_resource);
+    // For cluster-scoped CRDs, ignore the namespace filter.
+    let ns = if namespaced { namespace } else { None };
+    watch_stream(
+        api, tx, kind, status_fn, context, ns, label_selector, global_init, done_count,
+        total_watchers, all_init_done,
+    )
+    .await
+}
+
+/// Core watcher loop shared by typed and dynamic watchers.
+#[allow(clippy::too_many_arguments)]
+async fn watch_stream<T, F>(
+    api: Api<T>,
+    tx: SkimItemSender,
+    kind: ResourceKind,
+    status_fn: F,
+    context: String,
+    namespace: Option<String>,
+    label_selector: Option<String>,
+    global_init: Arc<Mutex<Vec<K8sItem>>>,
+    done_count: Arc<AtomicUsize>,
+    total_watchers: usize,
+    all_init_done: Arc<Notify>,
+) -> Result<()>
+where
+    T: Resource + DeserializeOwned + Clone + Send + Sync + Debug + 'static,
+    F: Fn(&T) -> String,
+{
     let mut watcher_config = match namespace.as_deref() {
         Some(ns) => watcher::Config::default().fields(&format!("metadata.namespace={ns}")),
         None => watcher::Config::default(),
@@ -439,7 +524,7 @@ where
                 } else {
                     let item_state = Arc::new(RwLock::new(ItemState { status, age }));
                     seen.insert(key, item_state.clone());
-                    let item = K8sItem::new_live(kind, ns, name, &context, item_state);
+                    let item = K8sItem::new_live(kind.clone(), ns, name, &context, item_state);
                     if in_init {
                         init_batch.push(item);
                     } else if tx
@@ -508,7 +593,7 @@ where
                     // New resource appeared after init — send to skim.
                     let item_state = Arc::new(RwLock::new(ItemState { status, age }));
                     seen.insert(key, item_state.clone());
-                    let item = K8sItem::new_live(kind, ns, name, &context, item_state);
+                    let item = K8sItem::new_live(kind.clone(), ns, name, &context, item_state);
                     if tx
                         .send(vec![Arc::new(item) as Arc<dyn skim::SkimItem>])
                         .is_err()

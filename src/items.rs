@@ -103,7 +103,7 @@ impl StatusHealth {
 }
 
 /// The kind of Kubernetes resource this item represents.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum ResourceKind {
     Pod,
@@ -120,10 +120,11 @@ pub enum ResourceKind {
     PersistentVolumeClaim,
     Job,
     CronJob,
+    Custom(String),
 }
 
 impl ResourceKind {
-    pub fn as_str(self) -> &'static str {
+    pub fn as_str(&self) -> &str {
         match self {
             Self::Pod => "pod",
             Self::Service => "svc",
@@ -139,10 +140,11 @@ impl ResourceKind {
             Self::PersistentVolumeClaim => "pvc",
             Self::Job => "job",
             Self::CronJob => "cronjob",
+            Self::Custom(s) => s,
         }
     }
 
-    pub fn color(self) -> Color {
+    pub fn color(&self) -> Color {
         match self {
             Self::Pod => Color::Green,
             Self::Service => Color::Blue,
@@ -153,6 +155,7 @@ impl ResourceKind {
             Self::PersistentVolume => Color::LightCyan,
             Self::PersistentVolumeClaim => Color::LightMagenta,
             Self::Job | Self::CronJob => Color::LightBlue,
+            Self::Custom(_) => Color::LightYellow,
         }
     }
 }
@@ -226,8 +229,8 @@ impl K8sItem {
         }
     }
 
-    pub fn kind(&self) -> ResourceKind {
-        self.kind
+    pub fn kind(&self) -> &ResourceKind {
+        &self.kind
     }
     pub fn namespace(&self) -> &str {
         &self.namespace

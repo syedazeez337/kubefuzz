@@ -276,7 +276,7 @@ pub fn action_rollout_restart(items: &[&K8sItem]) -> Result<()> {
     ];
 
     for item in items {
-        if !RESTARTABLE.contains(&item.kind()) {
+        if !RESTARTABLE.contains(item.kind()) {
             eprintln!(
                 "[kuberift] rollout restart only works with deploy/sts/ds (got {})",
                 item.kind().as_str()

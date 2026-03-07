@@ -23,6 +23,7 @@ use kuberift::k8s::{
         build_client_for_context, current_context, list_contexts, load_last_context,
         save_last_context,
     },
+    discovery::{discover_crds, DiscoveredCrd},
     resources::{watch_resources, ALL_KINDS},
 };
 use skim::prelude::*;
@@ -80,7 +81,7 @@ async fn main() -> Result<()> {
     if args.all_contexts {
         run_all_contexts(&args, &kinds, &kind_label)
     } else {
-        run_single_context(&args, &kinds, &kind_label, args.read_only)
+        run_single_context(&args, &kinds, &kind_label, args.read_only, args.no_crds)
     }
 }
 
@@ -91,6 +92,7 @@ fn run_single_context(
     kinds: &[ResourceKind],
     kind_label: &str,
     read_only: bool,
+    no_crds: bool,
 ) -> Result<()> {
     let mut active_ctx = args
         .context
@@ -113,10 +115,18 @@ fn run_single_context(
         tokio::spawn(async move {
             match build_client_for_context(&ctx_for_watcher, kubeconfig_owned.as_deref()).await {
                 Ok(client) => {
+                    let crds = resolve_crds(&client, &kinds_clone, no_crds).await;
+                    // Filter out Custom(_) kinds — they're handled as CRDs.
+                    let builtin_kinds: Vec<ResourceKind> = kinds_clone
+                        .iter()
+                        .filter(|k| !matches!(k, ResourceKind::Custom(_)))
+                        .cloned()
+                        .collect();
                     if let Err(e) = watch_resources(
                         client,
                         tx_k8s,
-                        &kinds_clone,
+                        &builtin_kinds,
+                        &crds,
                         "",
                         namespace_owned.as_deref(),
                         label_owned.as_deref(),
@@ -176,6 +186,7 @@ fn run_all_contexts(args: &Args, kinds: &[ResourceKind], kind_label: &str) -> Re
     let namespace = args.namespace.as_deref();
     let label_selector = args.label.as_deref();
 
+    let no_crds = args.no_crds;
     for ctx_name in &contexts {
         let tx_clone = tx.clone();
         let ctx_clone = ctx_name.clone();
@@ -187,10 +198,17 @@ fn run_all_contexts(args: &Args, kinds: &[ResourceKind], kind_label: &str) -> Re
         tokio::spawn(async move {
             match build_client_for_context(&ctx_clone, kubeconfig_owned.as_deref()).await {
                 Ok(client) => {
+                    let crds = resolve_crds(&client, &kinds_clone, no_crds).await;
+                    let builtin_kinds: Vec<ResourceKind> = kinds_clone
+                        .iter()
+                        .filter(|k| !matches!(k, ResourceKind::Custom(_)))
+                        .cloned()
+                        .collect();
                     if let Err(e) = watch_resources(
                         client,
                         tx_clone,
-                        &kinds_clone,
+                        &builtin_kinds,
+                        &crds,
                         &ctx_clone,
                         namespace_owned.as_deref(),
                         label_owned.as_deref(),
@@ -372,6 +390,53 @@ fn dispatch(output: &SkimOutput, read_only: bool) -> Result<()> {
     }
 
     Ok(())
+}
+
+// ─── CRD discovery helper ─────────────────────────────────────────────────
+
+/// Discover CRDs from the cluster, filtered by the user's resource argument.
+/// - `no_crds` flag → return empty
+/// - Filter contains `Custom(s)` → discover and return only matching CRDs
+/// - No custom filter (all built-in or no filter) → discover and return all CRDs
+async fn resolve_crds(
+    client: &kube::Client,
+    kinds: &[ResourceKind],
+    no_crds: bool,
+) -> Vec<DiscoveredCrd> {
+    if no_crds {
+        return Vec::new();
+    }
+
+    // Check if user asked for a specific CRD by name.
+    let crd_filter: Option<&str> = kinds.iter().find_map(|k| match k {
+        ResourceKind::Custom(s) => Some(s.as_str()),
+        _ => None,
+    });
+
+    // If the user asked for a specific built-in resource (e.g. `kf pods`),
+    // don't waste time discovering CRDs.
+    if crd_filter.is_none() && kinds.len() < ALL_KINDS.len() && !kinds.is_empty() {
+        return Vec::new();
+    }
+
+    match discover_crds(client).await {
+        Ok(all) => {
+            if let Some(filter) = crd_filter {
+                all.into_iter()
+                    .filter(|crd| {
+                        crd.plural.eq_ignore_ascii_case(filter)
+                            || crd.kind_name.eq_ignore_ascii_case(filter)
+                    })
+                    .collect()
+            } else {
+                all
+            }
+        }
+        Err(e) => {
+            eprintln!("[kuberift] CRD discovery failed: {e}");
+            Vec::new()
+        }
+    }
 }
 
 // ─── Demo data (no cluster) ───────────────────────────────────────────────────
