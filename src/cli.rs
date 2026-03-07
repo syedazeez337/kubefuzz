@@ -1,13 +1,15 @@
 use clap::Parser;
 use clap_complete::Shell;
 
+use crate::config::Config;
 use crate::items::ResourceKind;
 
 #[derive(Parser, Debug)]
 #[command(
     name = "kf",
     about = "Fuzzy-first interactive Kubernetes resource navigator",
-    version
+    version,
+    after_help = "CONFIG: ~/.config/kuberift/config.toml (see docs for schema)"
 )]
 pub struct Args {
     /// Resource type to filter (pods/po, svc, deploy, sts, ds, cm, secret,
@@ -56,6 +58,23 @@ pub struct Args {
 }
 
 impl Args {
+    /// Apply config file defaults to any CLI arg that wasn't explicitly set.
+    /// CLI args always take precedence over config values.
+    pub fn merge_with_config(&mut self, config: &Config) {
+        if self.namespace.is_none() && !config.general.default_namespace.is_empty() {
+            self.namespace = Some(config.general.default_namespace.clone());
+        }
+        if self.context.is_none() && !config.general.default_context.is_empty() {
+            self.context = Some(config.general.default_context.clone());
+        }
+        if self.resource.is_none() && !config.general.default_resource.is_empty() {
+            self.resource = Some(config.general.default_resource.clone());
+        }
+        if config.general.read_only {
+            self.read_only = true;
+        }
+    }
+
     /// Parse the resource argument into a list of `ResourceKind` to stream.
     /// Returns None when the argument is absent (meaning: stream everything).
     pub fn resource_filter(&self) -> Option<Vec<ResourceKind>> {

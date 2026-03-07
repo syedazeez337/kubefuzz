@@ -1,6 +1,7 @@
-//! Tests for kuberift::cli — Args::resource_filter alias resolution.
+//! Tests for kuberift::cli — Args::resource_filter alias resolution and config merge.
 
 use kuberift::cli::Args;
+use kuberift::config::Config;
 use kuberift::items::ResourceKind;
 
 // ── Helper ────────────────────────────────────────────────────────────────────
@@ -297,4 +298,58 @@ fn filter_case_insensitive_mixed_case() {
             .expect("Svc should resolve"),
         vec![ResourceKind::Service]
     );
+}
+
+// ── Config merge tests ──────────────────────────────────────────────────────
+
+#[test]
+fn merge_config_fills_empty_args() {
+    let config = kuberift::config::parse_config(
+        r#"
+        [general]
+        default_namespace = "production"
+        default_context = "staging"
+        default_resource = "pods"
+        read_only = true
+        "#,
+        std::path::Path::new("test.toml"),
+    );
+    let mut args = no_resource_args();
+    args.merge_with_config(&config);
+    assert_eq!(args.namespace.as_deref(), Some("production"));
+    assert_eq!(args.context.as_deref(), Some("staging"));
+    assert_eq!(args.resource.as_deref(), Some("pods"));
+    assert!(args.read_only);
+}
+
+#[test]
+fn merge_config_cli_overrides_config() {
+    let config = kuberift::config::parse_config(
+        r#"
+        [general]
+        default_namespace = "production"
+        default_context = "staging"
+        "#,
+        std::path::Path::new("test.toml"),
+    );
+    let mut args = Args {
+        namespace: Some("kube-system".to_string()),
+        context: Some("my-cluster".to_string()),
+        ..no_resource_args()
+    };
+    args.merge_with_config(&config);
+    // CLI values should win
+    assert_eq!(args.namespace.as_deref(), Some("kube-system"));
+    assert_eq!(args.context.as_deref(), Some("my-cluster"));
+}
+
+#[test]
+fn merge_empty_config_changes_nothing() {
+    let config = Config::default();
+    let mut args = no_resource_args();
+    args.merge_with_config(&config);
+    assert!(args.namespace.is_none());
+    assert!(args.context.is_none());
+    assert!(args.resource.is_none());
+    assert!(!args.read_only);
 }

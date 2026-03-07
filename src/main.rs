@@ -15,6 +15,7 @@ use kuberift::actions::{
     action_rollout_restart, action_yaml, install_preview_toggle, preview_toggle_path, runtime_dir,
 };
 use kuberift::cli::Args;
+use kuberift::config::load_config;
 use kuberift::items::{K8sItem, ResourceKind};
 #[allow(unused_imports)]
 use kuberift::k8s::{
@@ -29,7 +30,7 @@ use std::{borrow::Cow, sync::Arc};
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let args = Args::parse();
+    let mut args = Args::parse();
 
     // Shell completions — print and exit before any cluster I/O.
     if let Some(shell) = args.completions {
@@ -60,6 +61,10 @@ async fn main() -> Result<()> {
              Install kubectl: https://kubernetes.io/docs/tasks/tools/"
         );
     }
+
+    // Load config file (~/.config/kuberift/config.toml) and merge with CLI args.
+    let config = load_config();
+    args.merge_with_config(&config);
 
     // Write the preview-toggle shell script and reset mode to 0 (describe)
     install_preview_toggle();
