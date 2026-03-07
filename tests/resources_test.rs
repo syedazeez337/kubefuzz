@@ -958,14 +958,7 @@ fn event_status_warning_no_reason() {
 fn make_items() -> Vec<kuberift::items::K8sItem> {
     vec![
         kuberift::items::K8sItem::new(ResourceKind::Pod, "beta", "nginx", "Running", "1d", ""),
-        kuberift::items::K8sItem::new(
-            ResourceKind::Service,
-            "alpha",
-            "api",
-            "ClusterIP",
-            "5h",
-            "",
-        ),
+        kuberift::items::K8sItem::new(ResourceKind::Service, "alpha", "api", "ClusterIP", "5h", ""),
         kuberift::items::K8sItem::new(
             ResourceKind::Deployment,
             "gamma",

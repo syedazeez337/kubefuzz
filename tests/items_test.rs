@@ -1,6 +1,8 @@
 //! Tests for kuberift::items — StatusHealth, ResourceKind, K8sItem, and helpers.
 
-use kuberift::items::{context_color, truncate_name, K8sItem, ResourceKind, SortField, StatusHealth};
+use kuberift::items::{
+    context_color, truncate_name, K8sItem, ResourceKind, SortField, StatusHealth,
+};
 use ratatui::style::Color;
 
 // ── Helper ────────────────────────────────────────────────────────────────────
