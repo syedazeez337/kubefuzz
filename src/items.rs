@@ -120,6 +120,7 @@ pub enum ResourceKind {
     PersistentVolumeClaim,
     Job,
     CronJob,
+    Event,
     Custom(String),
 }
 
@@ -140,6 +141,7 @@ impl ResourceKind {
             Self::PersistentVolumeClaim => "pvc",
             Self::Job => "job",
             Self::CronJob => "cronjob",
+            Self::Event => "event",
             Self::Custom(s) => s,
         }
     }
@@ -155,6 +157,7 @@ impl ResourceKind {
             Self::PersistentVolume => Color::LightCyan,
             Self::PersistentVolumeClaim => Color::LightMagenta,
             Self::Job | Self::CronJob => Color::LightBlue,
+            Self::Event => Color::Gray,
             Self::Custom(_) => Color::LightYellow,
         }
     }
@@ -254,6 +257,60 @@ impl K8sItem {
     pub fn status_color(&self) -> Color {
         let status = self.status();
         StatusHealth::classify(&status).color()
+    }
+
+    /// Preview helper: fetch events related to this resource via kubectl.
+    fn preview_events(&self) -> ItemPreview {
+        // Map our short kind names to the Kubernetes Kind for field-selector
+        let k8s_kind = match &self.kind {
+            ResourceKind::Pod => "Pod",
+            ResourceKind::Service => "Service",
+            ResourceKind::Deployment => "Deployment",
+            ResourceKind::StatefulSet => "StatefulSet",
+            ResourceKind::DaemonSet => "DaemonSet",
+            ResourceKind::ConfigMap => "ConfigMap",
+            ResourceKind::Secret => "Secret",
+            ResourceKind::Ingress => "Ingress",
+            ResourceKind::Node => "Node",
+            ResourceKind::Namespace => "Namespace",
+            ResourceKind::PersistentVolume => "PersistentVolume",
+            ResourceKind::PersistentVolumeClaim => "PersistentVolumeClaim",
+            ResourceKind::Job => "Job",
+            ResourceKind::CronJob => "CronJob",
+            ResourceKind::Event => "Event",
+            ResourceKind::Custom(s) => s.as_str(),
+        };
+        let selector = format!(
+            "involvedObject.name={},involvedObject.kind={}",
+            self.name, k8s_kind
+        );
+        let mut args = vec!["get", "events", "--field-selector", &selector];
+        if !self.namespace.is_empty() {
+            args.extend_from_slice(&["-n", &self.namespace]);
+        }
+        if !self.context.is_empty() {
+            args.extend_from_slice(&["--context", &self.context]);
+        }
+
+        let header = format!("── EVENTS: {}/{} ──\n", self.kind.as_str(), self.name);
+        match std::process::Command::new("kubectl").args(&args).output() {
+            Ok(out) => {
+                let body = if out.status.success() {
+                    let s = String::from_utf8_lossy(&out.stdout).to_string();
+                    if s.trim().is_empty() {
+                        "No events found.".to_string()
+                    } else {
+                        s
+                    }
+                } else {
+                    format!("[kubectl error]\n{}", String::from_utf8_lossy(&out.stderr))
+                };
+                ItemPreview::AnsiText(format!("{header}{body}"))
+            }
+            Err(e) => ItemPreview::Text(format!(
+                "[Error running kubectl]\n{e}\n\nIs kubectl in your PATH?"
+            )),
+        }
     }
 
     /// Machine-parseable output string for piping.
@@ -366,11 +423,16 @@ impl SkimItem for K8sItem {
         Line::from(spans)
     }
 
-    /// Preview pane content — mode cycles via ctrl-p (describe → yaml → logs).
+    /// Preview pane content — mode cycles via ctrl-p (describe → yaml → logs → events).
     /// Passes --context when the item belongs to a non-default cluster.
     /// Skim calls this from a background thread; blocking is fine here.
     fn preview(&self, _context: PreviewContext) -> ItemPreview {
         let mode = crate::actions::current_preview_mode();
+
+        // Mode 3 = events: uses a completely different command structure.
+        if mode == 3 {
+            return self.preview_events();
+        }
 
         // Build the kubectl argument list for the current preview mode.
         // Namespace (-n) and --context must come BEFORE the `--` end-of-flags

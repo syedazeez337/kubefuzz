@@ -32,6 +32,8 @@ const BUILTIN_RESOURCES: &[(&str, &str)] = &[
     ("batch", "jobs"),
     ("batch", "cronjobs"),
     ("networking.k8s.io", "ingresses"),
+    ("", "events"),
+    ("events.k8s.io", "events"),
 ];
 
 fn is_builtin(group: &str, plural: &str) -> bool {

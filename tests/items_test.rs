@@ -26,6 +26,7 @@ fn kind_as_str_all_variants() {
     assert_eq!(ResourceKind::PersistentVolumeClaim.as_str(), "pvc");
     assert_eq!(ResourceKind::Job.as_str(), "job");
     assert_eq!(ResourceKind::CronJob.as_str(), "cronjob");
+    assert_eq!(ResourceKind::Event.as_str(), "event");
 }
 
 // ── ResourceKind::color ───────────────────────────────────────────────────────
@@ -48,6 +49,7 @@ fn kind_color_all_variants() {
     );
     assert_eq!(ResourceKind::Job.color(), Color::LightBlue);
     assert_eq!(ResourceKind::CronJob.color(), Color::LightBlue);
+    assert_eq!(ResourceKind::Event.color(), Color::Gray);
 }
 
 // ── ResourceKind::Display ─────────────────────────────────────────────────────
@@ -68,6 +70,7 @@ fn kind_display_matches_as_str_for_all_variants() {
         ResourceKind::PersistentVolumeClaim,
         ResourceKind::Job,
         ResourceKind::CronJob,
+        ResourceKind::Event,
     ];
     for kind in &kinds {
         assert_eq!(

@@ -255,6 +255,18 @@ fn filter_cronjob_aliases() {
     }
 }
 
+// ── Event aliases ────────────────────────────────────────────────────────────
+
+#[test]
+fn filter_event_aliases() {
+    for alias in &["ev", "event", "events"] {
+        let kinds = args_with(alias)
+            .resource_filter()
+            .unwrap_or_else(|| panic!("alias '{alias}' should resolve"));
+        assert_eq!(kinds, vec![ResourceKind::Event], "alias '{alias}' → Event");
+    }
+}
+
 // ── Unknown alias falls back to None ─────────────────────────────────────────
 
 #[test]

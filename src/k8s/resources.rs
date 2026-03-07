@@ -5,8 +5,8 @@ use k8s_openapi::{
         apps::v1::{DaemonSet, Deployment, StatefulSet},
         batch::v1::{CronJob, Job},
         core::v1::{
-            ConfigMap, Namespace, Node, PersistentVolume, PersistentVolumeClaim, Pod, Secret,
-            Service,
+            ConfigMap, Event, Namespace, Node, PersistentVolume, PersistentVolumeClaim, Pod,
+            Secret, Service,
         },
         networking::v1::Ingress,
     },
@@ -51,6 +51,7 @@ pub const ALL_KINDS: &[ResourceKind] = &[
     ResourceKind::PersistentVolumeClaim,
     ResourceKind::Namespace,
     ResourceKind::Node,
+    ResourceKind::Event,
 ];
 
 /// Watch the given resource kinds from the cluster, streaming live updates into skim.
@@ -331,6 +332,22 @@ pub async fn watch_resources(
                         t,
                         ResourceKind::CronJob,
                         cronjob_status,
+                        ctx,
+                        ns,
+                        ls.clone(),
+                        gi,
+                        dc,
+                        total_watchers,
+                        aid,
+                    )
+                    .await
+                }
+                ResourceKind::Event => {
+                    watch_typed::<Event, _>(
+                        c,
+                        t,
+                        ResourceKind::Event,
+                        event_status,
                         ctx,
                         ns,
                         ls.clone(),
@@ -843,6 +860,16 @@ pub fn cronjob_status(cj: &CronJob) -> String {
         format!("Active({active})")
     } else {
         "Scheduled".to_string()
+    }
+}
+
+pub fn event_status(event: &Event) -> String {
+    let reason = event.reason.as_deref().unwrap_or("Unknown");
+    let event_type = event.type_.as_deref().unwrap_or("Normal");
+    if event_type == "Warning" {
+        format!("⚠ {reason}")
+    } else {
+        reason.to_string()
     }
 }
 

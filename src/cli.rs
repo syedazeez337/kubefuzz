@@ -104,6 +104,7 @@ impl Args {
             }
             "job" | "jobs" => vec![ResourceKind::Job],
             "cj" | "cronjob" | "cronjobs" => vec![ResourceKind::CronJob],
+            "ev" | "event" | "events" => vec![ResourceKind::Event],
             _ => {
                 // Not a built-in resource — treat as a CRD kind/plural to match
                 // against discovered API resources at runtime.

@@ -51,7 +51,7 @@ pub fn install_preview_toggle() {
     let script = format!(
         "#!/bin/sh\n\
          n=$(cat \"{mode}\" 2>/dev/null || echo 0)\n\
-         printf $(( (n + 1) % 3 )) > \"{mode}\"\n",
+         printf $(( (n + 1) % 4 )) > \"{mode}\"\n",
         mode = mode_path.display()
     );
     if let Err(e) = std::fs::write(&toggle_path, &script) {
@@ -68,13 +68,13 @@ pub fn install_preview_toggle() {
     }
 }
 
-/// Read the current preview mode (0 = describe, 1 = yaml, 2 = logs).
+/// Read the current preview mode (0 = describe, 1 = yaml, 2 = logs, 3 = events).
 pub fn current_preview_mode() -> u8 {
     std::fs::read_to_string(preview_mode_path())
         .ok()
         .and_then(|s| s.trim().parse::<u8>().ok())
         .unwrap_or(0)
-        % 3
+        % 4
 }
 
 // ─── kubectl command builder ──────────────────────────────────────────────────
@@ -306,6 +306,201 @@ pub fn action_rollout_restart(items: &[&K8sItem]) -> Result<()> {
         }
     }
     Ok(())
+}
+
+// ─── Scale ────────────────────────────────────────────────────────────────
+
+pub fn action_scale(items: &[&K8sItem]) -> Result<()> {
+    const SCALABLE: &[ResourceKind] = &[ResourceKind::Deployment, ResourceKind::StatefulSet];
+
+    let scalable: Vec<&&K8sItem> = items
+        .iter()
+        .filter(|item| {
+            if SCALABLE.contains(item.kind()) {
+                true
+            } else {
+                eprintln!(
+                    "[kuberift] scaling not supported for {} ({})",
+                    item.kind().as_str(),
+                    item.name()
+                );
+                false
+            }
+        })
+        .collect();
+
+    if scalable.is_empty() {
+        return Ok(());
+    }
+
+    // Show current state
+    for item in &scalable {
+        println!(
+            "  {} {}/{} — current: {}",
+            item.kind().as_str(),
+            item.namespace(),
+            item.name(),
+            item.status()
+        );
+    }
+
+    print!("\nNew replica count: ");
+    io::stdout().flush()?;
+    let mut input = String::new();
+    io::stdin().read_line(&mut input)?;
+    let input = input.trim();
+    if input.is_empty() {
+        println!("Cancelled.");
+        return Ok(());
+    }
+    let Ok(replicas) = input.parse::<u32>() else {
+        eprintln!("[kuberift] '{input}' is not a valid replica count (non-negative integer)");
+        return Ok(());
+    };
+
+    let count = scalable.len();
+    let noun = if count == 1 { "resource" } else { "resources" };
+    print!("Scale {count} {noun} to {replicas} replicas? [y/N] ");
+    io::stdout().flush()?;
+    let mut confirm = String::new();
+    io::stdin().read_line(&mut confirm)?;
+    if !confirm.trim().eq_ignore_ascii_case("y") {
+        println!("Cancelled.");
+        return Ok(());
+    }
+
+    let replicas_str = format!("--replicas={replicas}");
+    for item in &scalable {
+        let target = format!("{}/{}", item.kind().as_str(), item.name());
+        let mut args = vec!["scale", &target, &replicas_str];
+        if !item.namespace().is_empty() {
+            args.extend_from_slice(&["-n", item.namespace()]);
+        }
+        let out = kubectl(item).args(&args).output()?;
+        if out.status.success() {
+            println!("✓ scaled {target} to {replicas} replicas");
+        } else {
+            eprintln!(
+                "✗ scale failed {target}: {}",
+                String::from_utf8_lossy(&out.stderr).trim()
+            );
+        }
+    }
+    Ok(())
+}
+
+// ─── Edit ─────────────────────────────────────────────────────────────────
+
+pub fn action_edit(items: &[&K8sItem], editor_override: &str) -> Result<()> {
+    let editor = resolve_editor(editor_override);
+
+    for (i, item) in items.iter().enumerate() {
+        if items.len() > 1 {
+            println!(
+                "\nEditing {}/{}: {}/{}",
+                i + 1,
+                items.len(),
+                item.kind().as_str(),
+                item.name()
+            );
+        }
+
+        // 1. Fetch current YAML
+        let mut get_args = vec!["get", item.kind().as_str(), "-o", "yaml"];
+        if !item.namespace().is_empty() {
+            get_args.extend_from_slice(&["-n", item.namespace()]);
+        }
+        get_args.extend_from_slice(&["--", item.name()]);
+        let out = kubectl(item).args(&get_args).output()?;
+        if !out.status.success() {
+            eprintln!(
+                "[kuberift] failed to fetch {}/{}: {}",
+                item.kind().as_str(),
+                item.name(),
+                String::from_utf8_lossy(&out.stderr).trim()
+            );
+            continue;
+        }
+        let original = out.stdout;
+
+        // 2. Write to secure temp file
+        let tmp_path = runtime_dir().join(format!(
+            "edit-{}-{}.yaml",
+            item.kind().as_str(),
+            item.name()
+        ));
+        std::fs::write(&tmp_path, &original)?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let _ = std::fs::set_permissions(&tmp_path, std::fs::Permissions::from_mode(0o600));
+        }
+
+        // 3. Open in editor
+        let status = Command::new(&editor).arg(&tmp_path).status()?;
+        if !status.success() {
+            eprintln!("[kuberift] editor exited with {status}");
+            let _ = std::fs::remove_file(&tmp_path);
+            continue;
+        }
+
+        // 4. Check for changes
+        let edited = std::fs::read(&tmp_path)?;
+        if edited == original {
+            println!("No changes.");
+            let _ = std::fs::remove_file(&tmp_path);
+            continue;
+        }
+
+        // 5. Confirm apply
+        print!(
+            "Apply changes to {}/{}? [y/N] ",
+            item.kind().as_str(),
+            item.name()
+        );
+        io::stdout().flush()?;
+        let mut confirm = String::new();
+        io::stdin().read_line(&mut confirm)?;
+        if !confirm.trim().eq_ignore_ascii_case("y") {
+            println!("Cancelled.");
+            let _ = std::fs::remove_file(&tmp_path);
+            continue;
+        }
+
+        // 6. Apply
+        let mut apply_args = vec!["apply", "-f"];
+        let tmp_str = tmp_path.to_string_lossy().to_string();
+        apply_args.push(&tmp_str);
+        let apply_out = kubectl(item).args(&apply_args).output()?;
+        if apply_out.status.success() {
+            println!("✓ applied {}/{}", item.kind().as_str(), item.name());
+        } else {
+            eprintln!(
+                "✗ apply failed: {}",
+                String::from_utf8_lossy(&apply_out.stderr).trim()
+            );
+        }
+
+        let _ = std::fs::remove_file(&tmp_path);
+    }
+    Ok(())
+}
+
+fn resolve_editor(config_editor: &str) -> String {
+    if !config_editor.is_empty() {
+        return config_editor.to_string();
+    }
+    if let Ok(e) = std::env::var("EDITOR") {
+        if !e.is_empty() {
+            return e;
+        }
+    }
+    if let Ok(v) = std::env::var("VISUAL") {
+        if !v.is_empty() {
+            return v;
+        }
+    }
+    "vi".to_string()
 }
 
 // ─── Print YAML ───────────────────────────────────────────────────────────────

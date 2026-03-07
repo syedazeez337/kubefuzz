@@ -9,7 +9,7 @@ use k8s_openapi::{
         batch::v1::{CronJob, CronJobStatus, Job, JobStatus},
         core::v1::{
             ContainerState, ContainerStateTerminated, ContainerStateWaiting, ContainerStatus,
-            Namespace, NamespaceStatus, Node, NodeCondition, NodeStatus, ObjectReference,
+            Event, Namespace, NamespaceStatus, Node, NodeCondition, NodeStatus, ObjectReference,
             PersistentVolume, PersistentVolumeClaim, PersistentVolumeClaimStatus,
             PersistentVolumeStatus, Pod, PodStatus, Secret, Service, ServiceSpec,
         },
@@ -21,16 +21,16 @@ use k8s_openapi::{
 };
 use kuberift::items::ResourceKind;
 use kuberift::k8s::resources::{
-    cronjob_status, daemonset_status, deploy_status, ingress_status, job_status, namespace_status,
-    node_status, pod_status, pv_status, pvc_status, resource_age, secret_status, service_status,
-    statefulset_status, status_priority, ALL_KINDS,
+    cronjob_status, daemonset_status, deploy_status, event_status, ingress_status, job_status,
+    namespace_status, node_status, pod_status, pv_status, pvc_status, resource_age, secret_status,
+    service_status, statefulset_status, status_priority, ALL_KINDS,
 };
 
 // ── ALL_KINDS ─────────────────────────────────────────────────────────────────
 
 #[test]
-fn all_kinds_has_thirteen_entries() {
-    assert_eq!(ALL_KINDS.len(), 14);
+fn all_kinds_has_fifteen_entries() {
+    assert_eq!(ALL_KINDS.len(), 15);
 }
 
 #[test]
@@ -49,6 +49,7 @@ fn all_kinds_contains_every_resource_variant() {
     assert!(ALL_KINDS.contains(&ResourceKind::PersistentVolumeClaim));
     assert!(ALL_KINDS.contains(&ResourceKind::Namespace));
     assert!(ALL_KINDS.contains(&ResourceKind::Node));
+    assert!(ALL_KINDS.contains(&ResourceKind::Event));
 }
 
 // ── status_priority ───────────────────────────────────────────────────────────
@@ -914,4 +915,40 @@ fn cronjob_status_empty_active_list_returns_scheduled() {
         ..Default::default()
     };
     assert_eq!(cronjob_status(&cj), "Scheduled");
+}
+
+// ── event_status ─────────────────────────────────────────────────────────────
+
+#[test]
+fn event_status_default_returns_unknown() {
+    assert_eq!(event_status(&Event::default()), "Unknown");
+}
+
+#[test]
+fn event_status_normal_event_shows_reason() {
+    let ev = Event {
+        type_: Some("Normal".to_string()),
+        reason: Some("Scheduled".to_string()),
+        ..Default::default()
+    };
+    assert_eq!(event_status(&ev), "Scheduled");
+}
+
+#[test]
+fn event_status_warning_event_prefixed() {
+    let ev = Event {
+        type_: Some("Warning".to_string()),
+        reason: Some("FailedScheduling".to_string()),
+        ..Default::default()
+    };
+    assert_eq!(event_status(&ev), "⚠ FailedScheduling");
+}
+
+#[test]
+fn event_status_warning_no_reason() {
+    let ev = Event {
+        type_: Some("Warning".to_string()),
+        ..Default::default()
+    };
+    assert_eq!(event_status(&ev), "⚠ Unknown");
 }

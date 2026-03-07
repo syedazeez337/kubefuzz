@@ -10,9 +10,9 @@
 use std::sync::Mutex;
 
 use kuberift::actions::{
-    action_delete, action_describe, action_exec, action_logs, action_portforward,
-    action_rollout_restart, action_yaml, current_preview_mode, install_preview_toggle,
-    preview_toggle_path, runtime_dir,
+    action_delete, action_describe, action_edit, action_exec, action_logs, action_portforward,
+    action_rollout_restart, action_scale, action_yaml, current_preview_mode,
+    install_preview_toggle, preview_toggle_path, runtime_dir,
 };
 use kuberift::items::{K8sItem, ResourceKind};
 
@@ -482,5 +482,77 @@ fn action_logs_passes_context_flag_for_multi_cluster_item() {
     );
     // With fake kubectl, we just verify the call doesn't blow up
     let result = with_fake_kubectl(0, || action_logs(&[&item]));
+    assert!(result.is_ok());
+}
+
+// ── action_scale — kind guard ────────────────────────────────────────────────
+
+#[test]
+fn action_scale_skips_pod_and_returns_ok() {
+    let item = pod_item();
+    let result = action_scale(&[&item]);
+    assert!(
+        result.is_ok(),
+        "action_scale on Pod must skip and return Ok: {result:?}"
+    );
+}
+
+#[test]
+fn action_scale_skips_service_and_returns_ok() {
+    let item = service_item();
+    let result = action_scale(&[&item]);
+    assert!(
+        result.is_ok(),
+        "action_scale on Service must skip and return Ok: {result:?}"
+    );
+}
+
+#[test]
+fn action_scale_skips_node_and_returns_ok() {
+    let item = node_item();
+    let result = action_scale(&[&item]);
+    assert!(result.is_ok());
+}
+
+#[test]
+fn action_scale_deploy_cancelled_on_empty_stdin() {
+    // stdin is EOF in tests → read_line returns empty → Cancelled
+    let item = deploy_item();
+    let result = action_scale(&[&item]);
+    assert!(result.is_ok());
+}
+
+#[test]
+fn action_scale_sts_cancelled_on_empty_stdin() {
+    let item = sts_item();
+    let result = action_scale(&[&item]);
+    assert!(result.is_ok());
+}
+
+#[test]
+fn action_scale_mixed_kinds_filters_unsupported() {
+    // Pod is skipped; only Deployment prompts (then cancels on EOF stdin)
+    let pod = pod_item();
+    let deploy = deploy_item();
+    let result = action_scale(&[&pod, &deploy]);
+    assert!(result.is_ok());
+}
+
+// ── action_edit — kubectl fetch and editor flow ──────────────────────────────
+
+#[test]
+fn action_edit_cancelled_on_kubectl_failure() {
+    // kubectl exits 1 fetching YAML → should skip and continue
+    let item = pod_item();
+    let result = with_fake_kubectl(1, || action_edit(&[&item], ""));
+    assert!(result.is_ok());
+}
+
+#[test]
+fn action_edit_works_for_any_kind() {
+    // kubectl exits 0 → writes temp file → tries to open editor (fails since
+    // editor is "true" which exits 0 but produces no change) → "No changes."
+    let item = deploy_item();
+    let result = with_fake_kubectl(0, || action_edit(&[&item], "true"));
     assert!(result.is_ok());
 }

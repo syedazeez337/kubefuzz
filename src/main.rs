@@ -11,8 +11,9 @@ use clap::{CommandFactory, Parser};
 use clap_complete::generate;
 use crossterm::event::{KeyCode, KeyModifiers};
 use kuberift::actions::{
-    action_delete, action_describe, action_exec, action_logs, action_portforward,
-    action_rollout_restart, action_yaml, install_preview_toggle, preview_toggle_path, runtime_dir,
+    action_delete, action_describe, action_edit, action_exec, action_logs, action_portforward,
+    action_rollout_restart, action_scale, action_yaml, install_preview_toggle, preview_toggle_path,
+    runtime_dir,
 };
 use kuberift::cli::Args;
 use kuberift::config::load_config;
@@ -78,10 +79,19 @@ async fn main() -> Result<()> {
         "all".to_string()
     };
 
+    let editor = config.general.editor.clone();
+
     if args.all_contexts {
-        run_all_contexts(&args, &kinds, &kind_label)
+        run_all_contexts(&args, &kinds, &kind_label, &editor)
     } else {
-        run_single_context(&args, &kinds, &kind_label, args.read_only, args.no_crds)
+        run_single_context(
+            &args,
+            &kinds,
+            &kind_label,
+            args.read_only,
+            args.no_crds,
+            &editor,
+        )
     }
 }
 
@@ -93,6 +103,7 @@ fn run_single_context(
     kind_label: &str,
     read_only: bool,
     no_crds: bool,
+    editor: &str,
 ) -> Result<()> {
     let mut active_ctx = args
         .context
@@ -164,7 +175,7 @@ fn run_single_context(
             continue;
         }
 
-        dispatch(&output, read_only)?;
+        dispatch(&output, read_only, editor)?;
         install_preview_toggle();
     }
 
@@ -174,7 +185,12 @@ fn run_single_context(
 
 // ─── Multi-cluster mode (--all-contexts) ─────────────────────────────────────
 
-fn run_all_contexts(args: &Args, kinds: &[ResourceKind], kind_label: &str) -> Result<()> {
+fn run_all_contexts(
+    args: &Args,
+    kinds: &[ResourceKind],
+    kind_label: &str,
+    editor: &str,
+) -> Result<()> {
     let contexts = list_contexts();
     if contexts.is_empty() {
         eprintln!("[kuberift] No contexts found in kubeconfig.");
@@ -235,7 +251,7 @@ fn run_all_contexts(args: &Args, kinds: &[ResourceKind], kind_label: &str) -> Re
         return Ok(());
     }
 
-    dispatch(&output, args.read_only)
+    dispatch(&output, args.read_only, editor)
 }
 
 // ─── Context picker (ctrl-x) ──────────────────────────────────────────────────
@@ -312,8 +328,8 @@ fn build_skim_options(
         .header(format!(
             "KubeRift  ctx:{ctx_label}{ns_hint}  res:{kind_label}{ro_hint}\n\
              <tab> select  <enter> describe  ctrl-l logs  ctrl-e exec  \
-             ctrl-d delete  ctrl-f forward  ctrl-r restart  ctrl-y yaml  \
-             ctrl-p cycle-preview{ctx_hint}",
+             ctrl-d delete  ctrl-f forward  ctrl-r restart  ctrl-s scale  \
+             ctrl-w edit  ctrl-y yaml  ctrl-p cycle-preview{ctx_hint}",
         ))
         .prompt("❯ ")
         .bind({
@@ -323,6 +339,8 @@ fn build_skim_options(
                 "ctrl-d:accept".to_string(),
                 "ctrl-f:accept".to_string(),
                 "ctrl-r:accept".to_string(),
+                "ctrl-s:accept".to_string(),
+                "ctrl-w:accept".to_string(),
                 "ctrl-y:accept".to_string(),
                 format!(
                     "ctrl-p:execute({})+refresh-preview",
@@ -340,7 +358,7 @@ fn build_skim_options(
 // ─── Action dispatch ──────────────────────────────────────────────────────────
 
 // RST-005: removed `async` — all action functions are synchronous
-fn dispatch(output: &SkimOutput, read_only: bool) -> Result<()> {
+fn dispatch(output: &SkimOutput, read_only: bool, editor: &str) -> Result<()> {
     let items: Vec<&K8sItem> = output
         .selected_items
         .iter()
@@ -382,6 +400,18 @@ fn dispatch(output: &SkimOutput, read_only: bool) -> Result<()> {
             eprintln!("[kuberift] read-only mode: rollout-restart is disabled");
         } else {
             action_rollout_restart(&items)?;
+        }
+    } else if ctrl('s') {
+        if read_only {
+            eprintln!("[kuberift] read-only mode: scale is disabled");
+        } else {
+            action_scale(&items)?;
+        }
+    } else if ctrl('w') {
+        if read_only {
+            eprintln!("[kuberift] read-only mode: edit is disabled");
+        } else {
+            action_edit(&items, editor)?;
         }
     } else if ctrl('y') {
         action_yaml(&items)?;
