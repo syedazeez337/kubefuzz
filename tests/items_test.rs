@@ -1,6 +1,6 @@
 //! Tests for kuberift::items — StatusHealth, ResourceKind, K8sItem, and helpers.
 
-use kuberift::items::{context_color, truncate_name, K8sItem, ResourceKind, StatusHealth};
+use kuberift::items::{context_color, truncate_name, K8sItem, ResourceKind, SortField, StatusHealth};
 use ratatui::style::Color;
 
 // ── Helper ────────────────────────────────────────────────────────────────────
@@ -391,4 +391,42 @@ fn context_color_various_names_do_not_panic() {
     ] {
         let _ = context_color(ctx);
     }
+}
+
+// ── SortField ─────────────────────────────────────────────────────────────────
+
+#[test]
+fn sort_field_parse_known_values() {
+    assert_eq!(SortField::parse("health"), SortField::Health);
+    assert_eq!(SortField::parse("name"), SortField::Name);
+    assert_eq!(SortField::parse("namespace"), SortField::Namespace);
+    assert_eq!(SortField::parse("ns"), SortField::Namespace);
+    assert_eq!(SortField::parse("kind"), SortField::Kind);
+    assert_eq!(SortField::parse("status"), SortField::Status);
+    assert_eq!(SortField::parse("age"), SortField::Age);
+}
+
+#[test]
+fn sort_field_parse_unknown_defaults_to_health() {
+    assert_eq!(SortField::parse(""), SortField::Health);
+    assert_eq!(SortField::parse("unknown"), SortField::Health);
+}
+
+#[test]
+fn sort_field_parse_case_insensitive() {
+    assert_eq!(SortField::parse("NAME"), SortField::Name);
+    assert_eq!(SortField::parse("Age"), SortField::Age);
+}
+
+#[test]
+fn sort_field_as_str_roundtrip() {
+    for field in SortField::ALL {
+        assert_eq!(SortField::parse(field.as_str()), *field);
+    }
+}
+
+#[test]
+fn sort_field_display() {
+    assert_eq!(format!("{}", SortField::Health), "health");
+    assert_eq!(format!("{}", SortField::Name), "name");
 }

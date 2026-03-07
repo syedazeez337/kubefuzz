@@ -15,6 +15,7 @@ fn empty_file_returns_defaults() {
     assert!(cfg.ui.show_age);
     assert!(!cfg.ui.show_context);
     assert_eq!(cfg.ui.truncate_name_length, 48);
+    assert!(cfg.ui.default_sort.is_empty());
 }
 
 #[test]
@@ -33,6 +34,7 @@ fn full_config_parses_correctly() {
         show_age = false
         show_context = true
         truncate_name_length = 64
+        default_sort = "name"
     "#;
     let cfg = parse_config(raw, Path::new("test.toml"));
     assert_eq!(cfg.general.default_namespace, "production");
@@ -45,6 +47,7 @@ fn full_config_parses_correctly() {
     assert!(!cfg.ui.show_age);
     assert!(cfg.ui.show_context);
     assert_eq!(cfg.ui.truncate_name_length, 64);
+    assert_eq!(cfg.ui.default_sort, "name");
 }
 
 #[test]

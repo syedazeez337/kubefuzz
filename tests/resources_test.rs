@@ -19,11 +19,11 @@ use k8s_openapi::{
     },
     apimachinery::pkg::apis::meta::v1::{ObjectMeta, Time},
 };
-use kuberift::items::ResourceKind;
+use kuberift::items::{ResourceKind, SortField};
 use kuberift::k8s::resources::{
     cronjob_status, daemonset_status, deploy_status, event_status, ingress_status, job_status,
     namespace_status, node_status, pod_status, pv_status, pvc_status, resource_age, secret_status,
-    service_status, statefulset_status, status_priority, ALL_KINDS,
+    service_status, sort_items, statefulset_status, status_priority, ALL_KINDS,
 };
 
 // ── ALL_KINDS ─────────────────────────────────────────────────────────────────
@@ -951,4 +951,79 @@ fn event_status_warning_no_reason() {
         ..Default::default()
     };
     assert_eq!(event_status(&ev), "⚠ Unknown");
+}
+
+// ── sort_items ──────────────────────────────────────────────────────────────
+
+fn make_items() -> Vec<kuberift::items::K8sItem> {
+    vec![
+        kuberift::items::K8sItem::new(ResourceKind::Pod, "beta", "nginx", "Running", "1d", ""),
+        kuberift::items::K8sItem::new(
+            ResourceKind::Service,
+            "alpha",
+            "api",
+            "ClusterIP",
+            "5h",
+            "",
+        ),
+        kuberift::items::K8sItem::new(
+            ResourceKind::Deployment,
+            "gamma",
+            "backend",
+            "CrashLoopBackOff",
+            "30m",
+            "",
+        ),
+    ]
+}
+
+#[test]
+fn sort_items_by_name() {
+    let mut items = make_items();
+    sort_items(&mut items, SortField::Name);
+    let names: Vec<&str> = items.iter().map(|i| i.name()).collect();
+    assert_eq!(names, vec!["api", "backend", "nginx"]);
+}
+
+#[test]
+fn sort_items_by_namespace() {
+    let mut items = make_items();
+    sort_items(&mut items, SortField::Namespace);
+    let ns: Vec<&str> = items.iter().map(|i| i.namespace()).collect();
+    assert_eq!(ns, vec!["alpha", "beta", "gamma"]);
+}
+
+#[test]
+fn sort_items_by_kind() {
+    let mut items = make_items();
+    sort_items(&mut items, SortField::Kind);
+    let kinds: Vec<&str> = items.iter().map(|i| i.kind().as_str()).collect();
+    assert_eq!(kinds, vec!["deploy", "pod", "svc"]);
+}
+
+#[test]
+fn sort_items_by_health_critical_last() {
+    let mut items = make_items();
+    sort_items(&mut items, SortField::Health);
+    // Critical items (low priority) sort last so they appear at the top in skim
+    assert_eq!(items.last().unwrap().name(), "backend");
+}
+
+#[test]
+fn sort_items_by_status_alphabetical() {
+    let mut items = make_items();
+    sort_items(&mut items, SortField::Status);
+    let statuses: Vec<String> = items.iter().map(|i| i.status()).collect();
+    assert_eq!(statuses, vec!["ClusterIP", "CrashLoopBackOff", "Running"]);
+}
+
+#[test]
+fn sort_items_by_age() {
+    let mut items = make_items();
+    sort_items(&mut items, SortField::Age);
+    let ages: Vec<String> = items
+        .iter()
+        .map(|i| i.state().read().unwrap().age.clone())
+        .collect();
+    assert_eq!(ages, vec!["1d", "30m", "5h"]);
 }

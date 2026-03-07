@@ -32,7 +32,7 @@ use std::{
 };
 use tokio::sync::Notify;
 
-use crate::items::{ItemState, K8sItem, ResourceKind};
+use crate::items::{ItemState, K8sItem, ResourceKind, SortField};
 use crate::k8s::discovery::{dynamic_status, DiscoveredCrd};
 
 /// All resource kinds to watch when no filter is given.
@@ -61,6 +61,7 @@ pub const ALL_KINDS: &[ResourceKind] = &[
 /// Falls back to sending whatever was collected after 8 seconds to handle slow/failing watchers.
 /// Subsequent Apply/Delete events are streamed in real-time.
 /// Automatically reconnects on watch failures via `default_backoff`.
+#[allow(clippy::too_many_arguments)]
 pub async fn watch_resources(
     client: Client,
     tx: SkimItemSender,
@@ -69,6 +70,7 @@ pub async fn watch_resources(
     context: &str,
     namespace: Option<&str>,
     label_selector: Option<&str>,
+    sort_field: SortField,
 ) -> Result<()> {
     let total_watchers = kinds.len() + crds.len();
     let global_init: Arc<Mutex<Vec<K8sItem>>> = Arc::new(Mutex::new(Vec::new()));
@@ -87,10 +89,7 @@ pub async fn watch_resources(
                 () = tokio::time::sleep(Duration::from_secs(8)) => {}
             }
             let mut buf = global_init.lock().unwrap();
-            buf.sort_by_key(|item| {
-                let status = item.status();
-                std::cmp::Reverse(status_priority(&status))
-            });
+            sort_items(&mut buf, sort_field);
             let sorted: Vec<Arc<dyn skim::SkimItem>> = buf
                 .drain(..)
                 .map(|item| Arc::new(item) as Arc<dyn skim::SkimItem>)
@@ -675,6 +674,31 @@ where
 
 pub fn status_priority(status: &str) -> u8 {
     crate::items::StatusHealth::classify(status).priority()
+}
+
+/// Sort a batch of items by the given field.
+pub fn sort_items(items: &mut [K8sItem], field: SortField) {
+    match field {
+        SortField::Health => {
+            items.sort_by_key(|item| {
+                let status = item.status();
+                std::cmp::Reverse(status_priority(&status))
+            });
+        }
+        SortField::Name => items.sort_by(|a, b| a.name().cmp(b.name())),
+        SortField::Namespace => items.sort_by(|a, b| a.namespace().cmp(b.namespace())),
+        SortField::Kind => items.sort_by(|a, b| a.kind().as_str().cmp(b.kind().as_str())),
+        SortField::Status => items.sort_by_key(K8sItem::status),
+        SortField::Age => {
+            // Age strings like "1d", "5h", "30m" — sort alphabetically
+            // (imprecise, but the RwLock-based age is a display string, not a timestamp)
+            items.sort_by(|a, b| {
+                let a_state = a.state().read().unwrap();
+                let b_state = b.state().read().unwrap();
+                a_state.age.cmp(&b_state.age)
+            });
+        }
+    }
 }
 
 // ─── Per-resource status extractors ──────────────────────────────────────────

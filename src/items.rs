@@ -102,6 +102,63 @@ impl StatusHealth {
     }
 }
 
+/// How to sort the initial resource batch.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum SortField {
+    /// Unhealthy resources first (Critical → Warning → Healthy).
+    #[default]
+    Health,
+    /// Alphabetical by resource name.
+    Name,
+    /// Alphabetical by namespace.
+    Namespace,
+    /// Alphabetical by kind short name.
+    Kind,
+    /// Alphabetical by status string.
+    Status,
+    /// By age (newest first).
+    Age,
+}
+
+impl SortField {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Health => "health",
+            Self::Name => "name",
+            Self::Namespace => "namespace",
+            Self::Kind => "kind",
+            Self::Status => "status",
+            Self::Age => "age",
+        }
+    }
+
+    pub fn parse(s: &str) -> Self {
+        match s.to_lowercase().as_str() {
+            "name" => Self::Name,
+            "namespace" | "ns" => Self::Namespace,
+            "kind" => Self::Kind,
+            "status" => Self::Status,
+            "age" => Self::Age,
+            _ => Self::Health,
+        }
+    }
+
+    pub const ALL: &[SortField] = &[
+        Self::Health,
+        Self::Name,
+        Self::Namespace,
+        Self::Kind,
+        Self::Status,
+        Self::Age,
+    ];
+}
+
+impl std::fmt::Display for SortField {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
 /// The kind of Kubernetes resource this item represents.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[non_exhaustive]

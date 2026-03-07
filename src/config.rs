@@ -38,6 +38,8 @@ pub struct UiConfig {
     pub show_context: bool,
     #[serde(default = "default_truncate_length")]
     pub truncate_name_length: usize,
+    #[serde(default)]
+    pub default_sort: String,
 }
 
 impl Default for UiConfig {
@@ -47,6 +49,7 @@ impl Default for UiConfig {
             show_age: true,
             show_context: false,
             truncate_name_length: default_truncate_length(),
+            default_sort: String::new(),
         }
     }
 }

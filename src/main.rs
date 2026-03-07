@@ -17,7 +17,7 @@ use kuberift::actions::{
 };
 use kuberift::cli::Args;
 use kuberift::config::load_config;
-use kuberift::items::{K8sItem, ResourceKind};
+use kuberift::items::{K8sItem, ResourceKind, SortField};
 #[allow(unused_imports)]
 use kuberift::k8s::{
     client::{
@@ -80,9 +80,10 @@ async fn main() -> Result<()> {
     };
 
     let editor = config.general.editor.clone();
+    let sort_field = SortField::parse(&config.ui.default_sort);
 
     if args.all_contexts {
-        run_all_contexts(&args, &kinds, &kind_label, &editor)
+        run_all_contexts(&args, &kinds, &kind_label, &editor, sort_field)
     } else {
         run_single_context(
             &args,
@@ -91,6 +92,7 @@ async fn main() -> Result<()> {
             args.read_only,
             args.no_crds,
             &editor,
+            sort_field,
         )
     }
 }
@@ -104,6 +106,7 @@ fn run_single_context(
     read_only: bool,
     no_crds: bool,
     editor: &str,
+    mut sort_field: SortField,
 ) -> Result<()> {
     let mut active_ctx = args
         .context
@@ -123,11 +126,11 @@ fn run_single_context(
         let kubeconfig_owned = kubeconfig.map(str::to_string);
         let namespace_owned = namespace.map(str::to_string);
         let label_owned = label_selector.map(str::to_string);
+        let sf = sort_field;
         tokio::spawn(async move {
             match build_client_for_context(&ctx_for_watcher, kubeconfig_owned.as_deref()).await {
                 Ok(client) => {
                     let crds = resolve_crds(&client, &kinds_clone, no_crds).await;
-                    // Filter out Custom(_) kinds — they're handled as CRDs.
                     let builtin_kinds: Vec<ResourceKind> = kinds_clone
                         .iter()
                         .filter(|k| !matches!(k, ResourceKind::Custom(_)))
@@ -141,6 +144,7 @@ fn run_single_context(
                         "",
                         namespace_owned.as_deref(),
                         label_owned.as_deref(),
+                        sf,
                     )
                     .await
                     {
@@ -174,6 +178,13 @@ fn run_single_context(
             install_preview_toggle();
             continue;
         }
+        if key.code == KeyCode::Char('o') && key.modifiers == KeyModifiers::CONTROL {
+            if let Some(new_sort) = pick_sort(sort_field)? {
+                sort_field = new_sort;
+            }
+            install_preview_toggle();
+            continue;
+        }
 
         dispatch(&output, read_only, editor)?;
         install_preview_toggle();
@@ -190,6 +201,7 @@ fn run_all_contexts(
     kinds: &[ResourceKind],
     kind_label: &str,
     editor: &str,
+    sort_field: SortField,
 ) -> Result<()> {
     let contexts = list_contexts();
     if contexts.is_empty() {
@@ -210,6 +222,7 @@ fn run_all_contexts(
         let kubeconfig_owned = kubeconfig.map(str::to_string);
         let namespace_owned = namespace.map(str::to_string);
         let label_owned = label_selector.map(str::to_string);
+        let sf = sort_field;
 
         tokio::spawn(async move {
             match build_client_for_context(&ctx_clone, kubeconfig_owned.as_deref()).await {
@@ -228,6 +241,7 @@ fn run_all_contexts(
                         &ctx_clone,
                         namespace_owned.as_deref(),
                         label_owned.as_deref(),
+                        sf,
                     )
                     .await
                     {
@@ -290,6 +304,54 @@ fn pick_context() -> Result<Option<String>> {
     Ok(Some(output.selected_items[0].output().to_string()))
 }
 
+// ─── Sort picker (ctrl-o) ────────────────────────────────────────────────────
+
+fn pick_sort(current: SortField) -> Result<Option<SortField>> {
+    let (tx, rx): (SkimItemSender, SkimItemReceiver) = unbounded();
+    for field in SortField::ALL {
+        let marker = if *field == current { " ✓" } else { "" };
+        let label = format!("{}{marker}", field.as_str());
+        if tx
+            .send(vec![Arc::new(SortItem(*field, label)) as Arc<dyn SkimItem>])
+            .is_err()
+        {
+            break;
+        }
+    }
+    drop(tx);
+
+    let options = SkimOptionsBuilder::default()
+        .header("Sort by  (Esc to cancel)")
+        .prompt("sort ❯ ")
+        .height("30%")
+        .build()?;
+
+    let output = Skim::run_with(options, Some(rx)).map_err(|e| anyhow::anyhow!("{e}"))?;
+
+    if output.is_abort || output.selected_items.is_empty() {
+        return Ok(None);
+    }
+
+    let selected = &output.selected_items[0];
+    let inner: &dyn SkimItem = &*selected.item;
+    if let Some(sort_item) = inner.as_any().downcast_ref::<SortItem>() {
+        Ok(Some(sort_item.0))
+    } else {
+        Ok(None)
+    }
+}
+
+struct SortItem(SortField, String);
+
+impl SkimItem for SortItem {
+    fn text(&self) -> Cow<'_, str> {
+        Cow::Borrowed(&self.1)
+    }
+    fn output(&self) -> Cow<'_, str> {
+        Cow::Borrowed(&self.1)
+    }
+}
+
 /// Minimal `SkimItem` wrapper for a kubeconfig context name string.
 struct ContextItem(String);
 
@@ -329,7 +391,7 @@ fn build_skim_options(
             "KubeRift  ctx:{ctx_label}{ns_hint}  res:{kind_label}{ro_hint}\n\
              <tab> select  <enter> describe  ctrl-l logs  ctrl-e exec  \
              ctrl-d delete  ctrl-f forward  ctrl-r restart  ctrl-s scale  \
-             ctrl-w edit  ctrl-y yaml  ctrl-p cycle-preview{ctx_hint}",
+             ctrl-w edit  ctrl-y yaml  ctrl-o sort  ctrl-p cycle-preview{ctx_hint}",
         ))
         .prompt("❯ ")
         .bind({
@@ -342,6 +404,7 @@ fn build_skim_options(
                 "ctrl-s:accept".to_string(),
                 "ctrl-w:accept".to_string(),
                 "ctrl-y:accept".to_string(),
+                "ctrl-o:accept".to_string(),
                 format!(
                     "ctrl-p:execute({})+refresh-preview",
                     preview_toggle_path().display()
